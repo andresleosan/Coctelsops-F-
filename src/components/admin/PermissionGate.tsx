@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { useAuth } from "@/hooks/use-auth";
+import { canAccessAdmin } from "@/components/admin/permission-check";
 import type { Permission } from "@/types/auth";
 
 type PermissionGateProps = {
@@ -17,7 +18,7 @@ export function PermissionGate({ permission, children, fallback = null }: Permis
 
   useEffect(() => {
     if (loading) return;
-    if (!user || !isAdmin) {
+    if (!user) {
       setAllowed(false);
       return;
     }
@@ -30,8 +31,8 @@ export function PermissionGate({ permission, children, fallback = null }: Permis
         setAllowed(false);
         return;
       }
-      const data = (await response.json()) as { user?: { accountType?: string; permissions?: Permission[] } };
-      setAllowed(isAdmin || data.user?.permissions?.includes(permission) === true);
+      const data = (await response.json()) as { user?: { permissions?: Permission[] } };
+      setAllowed(canAccessAdmin({ isAdmin, permissions: data.user?.permissions ?? [], permission }));
     }).catch(() => {
       if (active) setAllowed(false);
     });

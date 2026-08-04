@@ -83,3 +83,26 @@ Applied in the follow-up fix commit:
 ## Deployment Hold
 
 The existing direct `addDoc(collection(db, 'orders'), ...)` in `src/app/checkout/page.tsx` was intentionally not changed. Deployment must remain blocked until Task 5 replaces direct order writes with the authenticated, verified-email, server-validated order API.
+
+## Staff Permission Regression Fix
+
+The previous strict-claim guard change was narrowed incorrectly: it rejected staff before checking the server-resolved role permissions. The guards now use the client-safe `canAccessAdmin` helper with permissions returned by `GET /api/auth/session`:
+
+- Staff users can enter a guard with an explicitly assigned permission such as `pedidos.read`.
+- Customers with no assigned administrative permissions remain blocked.
+- `isAdmin` still grants only the strict claim-admin elevated path; no `accountType` value is trusted by the UI.
+- The API and Firestore authorization paths remain unchanged and continue to enforce server-side checks.
+- No checkout or order-write files were modified.
+
+## Staff Regression Verification
+
+- Focused guard suite: `npm test -- --run tests/components/admin-permissions.test.ts tests/components/admin-guards.test.ts`
+  - Result: 2 files passed, 5 tests passed.
+- Full available suite: `npm test`
+  - Result: 12 files passed, 62 tests passed.
+- `npm run typecheck`
+  - Result: passed.
+- `npm run lint`
+  - Result: passed with the existing warnings listed above.
+- `npm run build`
+  - Result: passed.

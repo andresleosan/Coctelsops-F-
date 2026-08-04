@@ -10,6 +10,8 @@ describe("admin guard contract", () => {
   it("requires the strict auth claim in both client guards", () => {
     expect(adminGuard).toContain("isAdmin");
     expect(permissionGate).toContain("isAdmin");
+    expect(adminGuard).toContain("canAccessAdmin");
+    expect(permissionGate).toContain("canAccessAdmin");
     expect(adminGuard).not.toContain('data.user?.accountType === "admin"');
     expect(permissionGate).not.toContain('data.user?.accountType === "admin"');
   });

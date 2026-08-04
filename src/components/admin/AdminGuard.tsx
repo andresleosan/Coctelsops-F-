@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { useAuth } from "@/hooks/use-auth";
+import { canAccessAdmin } from "@/components/admin/permission-check";
 import type { Permission } from "@/types/auth";
 
 type AdminGuardProps = {
@@ -12,7 +13,7 @@ type AdminGuardProps = {
 };
 
 type SessionResponse = {
-  user?: { accountType?: string; permissions?: Permission[] };
+  user?: { permissions?: Permission[] };
 };
 
 export function AdminGuard({ children, permission }: AdminGuardProps) {
@@ -31,11 +32,6 @@ export function AdminGuard({ children, permission }: AdminGuardProps) {
       return;
     }
 
-    if (!isAdmin) {
-      setAllowed(false);
-      return;
-    }
-
     let active = true;
     setAllowed(null);
     void user.getIdToken().then(async (token) => {
@@ -47,7 +43,7 @@ export function AdminGuard({ children, permission }: AdminGuardProps) {
       }
       const data = (await response.json()) as SessionResponse;
       const permissions = data.user?.permissions ?? [];
-      setAllowed(permission ? isAdmin || permissions.includes(permission) : isAdmin || permissions.length > 0);
+      setAllowed(canAccessAdmin({ isAdmin, permissions, permission }));
     }).catch(() => {
       if (active) setAllowed(false);
     });
