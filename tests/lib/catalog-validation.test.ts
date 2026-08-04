@@ -29,6 +29,7 @@ describe("productInputSchema", () => {
     ["imagen mal formada", { image: "not-a-url" }],
     ["imagen con host relativo", { image: "//example.com/image.png" }],
     ["host de imagen no configurado", { image: "https://example.com/image.png" }],
+    ["host permitido con puerto", { image: "https://picsum.photos:8443/image.png" }],
   ])("rechaza %s", (_case, override) => {
     expect(() => productInputSchema.parse({ ...validProduct, ...override })).toThrow();
   });

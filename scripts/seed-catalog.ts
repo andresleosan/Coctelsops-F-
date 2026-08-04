@@ -1,7 +1,7 @@
 import { PRODUCTS } from "@/app/lib/products";
-import { seedProduct } from "@/lib/firestore/products";
-import { getAdminDb } from "@/lib/firebase-admin";
+import { productInputSchema } from "@/lib/validation/catalog";
 import type { CategoryInput } from "@/types/catalog";
+import { getSeedAdminDb } from "./firebase-admin";
 
 const CATEGORY_SEEDS: Record<string, CategoryInput> = {
   granizado: { name: "Granizados", active: true, order: 1 },
@@ -10,12 +10,13 @@ const CATEGORY_SEEDS: Record<string, CategoryInput> = {
 };
 
 export async function seedCatalog(): Promise<void> {
-  const db = getAdminDb();
+  const db = getSeedAdminDb();
   const now = new Date().toISOString();
 
   for (const product of PRODUCTS) {
     const { id, ...input } = product;
-    await seedProduct(input, id);
+    const validated = productInputSchema.parse(input);
+    await db.collection("productos").doc(id).set({ ...validated, updatedAt: now }, { merge: true });
   }
 
   for (const [id, input] of Object.entries(CATEGORY_SEEDS)) {

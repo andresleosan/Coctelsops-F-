@@ -9,7 +9,10 @@ export function isAllowedCatalogImage(value: string): boolean {
 
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && CATALOG_IMAGE_HOSTS.includes(url.hostname as (typeof CATALOG_IMAGE_HOSTS)[number]);
+    const hasExplicitPort = /:\d+(?:[/?#]|$)/.test(value.slice(value.indexOf("://") + 3));
+    return url.protocol === "https:"
+      && !hasExplicitPort
+      && CATALOG_IMAGE_HOSTS.includes(url.hostname as (typeof CATALOG_IMAGE_HOSTS)[number]);
   } catch {
     return false;
   }
