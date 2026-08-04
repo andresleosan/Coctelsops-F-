@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { Product } from '@/app/lib/products';
+import type { Product } from '@/types/catalog';
 import { useState, useEffect } from 'react';
 import ProductCustomizer from './ProductCustomizer';
 import { Badge } from '@/components/ui/badge';

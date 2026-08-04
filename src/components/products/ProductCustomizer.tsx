@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Product } from '@/app/lib/products';
+import type { Product } from '@/types/catalog';
 import {
   Dialog,
   DialogContent,
@@ -148,8 +148,8 @@ export default function ProductCustomizer({ product, open, onOpenChange }: Produ
         </div>
 
         <DialogFooter>
-          <Button onClick={handleAddToCart} className="w-full text-lg h-12 rounded-full">
-            Agregar al Carrito
+          <Button onClick={handleAddToCart} disabled={product.stock <= 0} className="w-full text-lg h-12 rounded-full">
+            {product.stock > 0 ? 'Agregar al Carrito' : 'Agotado'}
           </Button>
         </DialogFooter>
       </DialogContent>

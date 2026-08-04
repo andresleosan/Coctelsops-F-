@@ -1,16 +1,8 @@
 
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import type { Product } from '@/types/catalog';
 
-export type Product = {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  image: string;
-  category: 'granizado' | 'cocktail' | 'special';
-  availableFlavors: string[];
-  availableAddOns: { name: string; price: number }[];
-};
+export type { Product } from '@/types/catalog';
 
 export const PRODUCTS: Product[] = [
   {
@@ -25,7 +17,10 @@ export const PRODUCTS: Product[] = [
       { name: 'Leche Condensada', price: 1000 },
       { name: 'Gomitas', price: 1500 },
       { name: 'Fruta Picada Extra', price: 2000 }
-    ]
+    ],
+    stock: 100,
+    active: true,
+    featured: true,
   },
   {
     id: '2',
@@ -38,7 +33,10 @@ export const PRODUCTS: Product[] = [
     availableAddOns: [
       { name: 'Sal de Gusano', price: 1500 },
       { name: 'Chile en Polvo', price: 1000 }
-    ]
+    ],
+    stock: 100,
+    active: true,
+    featured: true,
   },
   {
     id: '3',
@@ -51,7 +49,10 @@ export const PRODUCTS: Product[] = [
     availableAddOns: [
       { name: 'Coco Rallado', price: 1000 },
       { name: 'Cereza', price: 500 }
-    ]
+    ],
+    stock: 100,
+    active: true,
+    featured: true,
   },
   {
     id: '4',
@@ -64,7 +65,10 @@ export const PRODUCTS: Product[] = [
     availableAddOns: [
       { name: 'Leche Condensada', price: 1000 },
       { name: 'Miel', price: 1500 }
-    ]
+    ],
+    stock: 100,
+    active: true,
+    featured: false,
   },
   {
     id: '5',
@@ -76,6 +80,9 @@ export const PRODUCTS: Product[] = [
     availableFlavors: ['Lulo', 'Limón'],
     availableAddOns: [
       { name: 'Hierbabuena', price: 500 }
-    ]
+    ],
+    stock: 100,
+    active: true,
+    featured: false,
   }
 ];
