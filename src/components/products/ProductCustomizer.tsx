@@ -2,6 +2,7 @@
 "use client";
 
 import type { Product } from '@/types/catalog';
+import type { OrderCustomization } from '@/types/orders';
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,7 @@ export default function ProductCustomizer({ product, open, onOpenChange }: Produ
   const { addItem } = useCart();
   const { toast } = useToast();
   
-  const [size, setSize] = useState('Medium');
+  const [size, setSize] = useState<OrderCustomization['size']>('Medium');
   const [selectedFlavors, setSelectedFlavors] = useState<string[]>([]);
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
 
@@ -92,7 +93,7 @@ export default function ProductCustomizer({ product, open, onOpenChange }: Produ
         <div className="space-y-6 py-4">
           <div className="space-y-3">
             <Label className="text-base font-semibold">Tamaño</Label>
-            <RadioGroup value={size} onValueChange={setSize} className="grid grid-cols-3 gap-2">
+            <RadioGroup value={size} onValueChange={(value) => setSize(value as OrderCustomization['size'])} className="grid grid-cols-3 gap-2">
               {['Small', 'Medium', 'Large'].map((s) => (
                 <div key={s}>
                   <RadioGroupItem value={s} id={s} className="peer sr-only" />

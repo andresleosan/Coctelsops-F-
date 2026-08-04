@@ -11,17 +11,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, CreditCard, Wallet, Truck, ArrowLeft } from 'lucide-react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 
 export default function CheckoutPage() {
-  const { totalPrice, items, clearCart } = useCart();
+  const { totalPrice, items, clearCart, getCheckoutItems } = useCart();
   const { user, loading: authLoading, isVerified } = useAuth();
-  const db = useFirestore();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -45,40 +43,44 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db) return;
-    
-    setIsSubmitting(true);
-    
-    const orderData = {
-      customerName: formData.name,
-      phone: formData.phone,
-      address: formData.address,
-      notes: formData.notes,
-      items: items.map(item => ({
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        customization: item.customization
-      })),
-      total: totalPrice,
-      status: 'Pendiente',
-      createdAt: serverTimestamp()
-    };
+    if (!user) return;
 
-    addDoc(collection(db, 'orders'), orderData)
-      .then((docRef) => {
-        clearCart();
-        router.push(`/order-status/${docRef.id}`);
-      })
-      .catch(async () => {
-        const permissionError = new FirestorePermissionError({
-          path: 'orders',
-          operation: 'create',
-          requestResourceData: orderData
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        setIsSubmitting(false);
+    setIsSubmitting(true);
+    setSubmitError('');
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/pedidos', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          customerName: formData.name,
+          phone: formData.phone,
+          address: formData.address,
+          notes: formData.notes,
+          items: getCheckoutItems(),
+        }),
       });
+
+      if (response.ok) {
+        const data = await response.json() as { order?: { id: string } };
+        if (!data.order?.id) throw new Error('La respuesta del pedido no es valida');
+        clearCart();
+        router.push(`/order-status/${data.order.id}`);
+        return;
+      }
+
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      if (response.status === 401) setSubmitError('Tu sesion expiro. Inicia sesion nuevamente.');
+      else if (response.status === 403) setSubmitError('Verifica tu correo antes de comprar.');
+      else if (response.status === 422) setSubmitError(body.error || 'Revisa los datos del pedido.');
+      else if (response.status === 500) setSubmitError('No pudimos procesar el pedido. Intenta de nuevo.');
+      else setSubmitError('No pudimos procesar el pedido.');
+    } catch {
+      setSubmitError('No pudimos conectar con la central de pedidos.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -201,6 +203,7 @@ export default function CheckoutPage() {
                 >
                   {isSubmitting ? 'PROCESANDO...' : 'CONFIRMAR PEDIDO'}
                 </Button>
+                {submitError && <p role="alert" className="text-center text-sm font-bold text-white">{submitError}</p>}
                 <p className="text-[10px] text-center text-white/50 uppercase tracking-[0.2em] font-bold">Al confirmar aceptas los términos</p>
               </CardContent>
             </Card>

@@ -2,6 +2,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import type { CheckoutItemInput, OrderCustomization } from '@/types/orders';
 
 export type CartItem = {
   id: string;
@@ -10,11 +11,7 @@ export type CartItem = {
   price: number;
   quantity: number;
   image: string;
-  customization: {
-    size: string;
-    flavors: string[];
-    addOns: string[];
-  };
+  customization: OrderCustomization;
 };
 
 type CartContextType = {
@@ -23,6 +20,7 @@ type CartContextType = {
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
+  getCheckoutItems: () => CheckoutItemInput[];
   totalItems: number;
   totalPrice: number;
 };
@@ -68,11 +66,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = () => setItems([]);
 
+  const getCheckoutItems = (): CheckoutItemInput[] => items.map(({ productId, quantity, customization }) => ({
+    productId,
+    quantity,
+    customization,
+  }));
+
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, totalItems, totalPrice }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, getCheckoutItems, totalItems, totalPrice }}>
       {children}
     </CartContext.Provider>
   );

@@ -2,19 +2,22 @@
 'use client';
 
 import { useCollection, useFirestore } from '@/firebase';
-import { collection, query, orderBy, limit, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Clock, Users, DollarSign, Package, RefreshCw, Eye, CheckCircle2 } from 'lucide-react';
 import { useMemoFirebase } from '@/firebase/firestore/use-memo-firebase';
-import { errorEmitter, FirestorePermissionError } from '@/firebase';
 import { AdminGuard } from '@/components/admin/AdminGuard';
+import { useAuth } from '@/hooks/use-auth';
+import { useState } from 'react';
 
 type OrderItem = {
   quantity?: number;
   name?: string;
+  unitPrice?: number;
   price?: number;
+  subtotal?: number;
 };
 
 type Order = {
@@ -30,33 +33,42 @@ type Order = {
 
 export default function AdminDashboard() {
   const db = useFirestore();
+  const { user } = useAuth();
+  const [actionError, setActionError] = useState('');
 
   const ordersQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(50));
+    return query(collection(db, 'pedidos'), orderBy('createdAt', 'desc'), limit(50));
   }, [db]);
 
   const { data: orders, loading } = useCollection<Order>(ordersQuery);
 
   const stats = {
     totalSales: orders?.reduce((acc, curr) => acc + (curr.total || 0), 0) || 0,
-    pending: orders?.filter((o) => o.status === 'Pendiente').length || 0,
+    pending: orders?.filter((o) => o.status === 'pendiente').length || 0,
     newClients: new Set(orders?.map((o) => o.phone)).size || 0,
     totalOrders: orders?.length || 0
   };
 
-  const updateStatus = (id: string, newStatus: string) => {
-    if (!db) return;
-    const orderRef = doc(db, 'orders', id);
-    updateDoc(orderRef, { status: newStatus })
-      .catch(async () => {
-        const permissionError = new FirestorePermissionError({
-          path: orderRef.path,
-          operation: 'update',
-          requestResourceData: { status: newStatus }
-        });
-        errorEmitter.emit('permission-error', permissionError);
+  const updateStatus = async (id: string, newStatus: string) => {
+    if (!user) return;
+    setActionError('');
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/pedidos/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: newStatus }),
       });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { error?: string };
+        setActionError(body.error || 'No se pudo actualizar el pedido.');
+        return;
+      }
+      window.location.reload();
+    } catch {
+      setActionError('No se pudo conectar con la central de pedidos.');
+    }
   };
 
   return (
@@ -98,6 +110,7 @@ export default function AdminDashboard() {
           <h2 className="text-xl md:text-2xl font-headline font-bold uppercase tracking-tight text-white/90">ÚLTIMOS PEDIDOS</h2>
           <Badge variant="outline" className="border-primary text-primary font-bold text-[10px] animate-pulse px-3 py-1">EN VIVO</Badge>
         </div>
+        {actionError && <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm font-bold text-destructive">{actionError}</p>}
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24 space-y-4">
@@ -120,13 +133,13 @@ export default function AdminDashboard() {
                     </div>
                     <Badge 
                       className={`text-[10px] px-3 py-1 font-bold rounded-full ${
-                        order.status === 'Pendiente' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                        order.status === 'Preparando' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                        order.status === 'En Camino' ? 'bg-accent/10 text-accent border-accent/20' :
+                        order.status === 'pendiente' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                        order.status === 'preparando' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                        order.status === 'en_camino' ? 'bg-accent/10 text-accent border-accent/20' :
                         'bg-green-500/10 text-green-500 border-green-500/20'
                       }`}
                     >
-                      {order.status.toUpperCase()}
+                      {order.status.replace('_', ' ').toUpperCase()}
                     </Badge>
                   </div>
 
@@ -134,7 +147,7 @@ export default function AdminDashboard() {
                     {order.items?.map((it, idx: number) => (
                       <div key={idx} className="flex justify-between text-sm text-white/80">
                         <span className="font-light">{it.quantity}x {it.name}</span>
-                        <span className="font-bold text-white">${it.price?.toLocaleString()}</span>
+                        <span className="font-bold text-white">${(it.subtotal ?? ((it.unitPrice ?? it.price ?? 0) * (it.quantity ?? 0))).toLocaleString()}</span>
                       </div>
                     ))}
                     <div className="pt-3 flex justify-between items-end border-t border-white/5">
@@ -154,28 +167,36 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    {order.status === 'Pendiente' && (
+                    {order.status === 'pendiente' && (
                       <Button 
                         className="flex-1 bg-primary text-white h-12 text-xs font-black tracking-widest rounded-full shadow-lg shadow-primary/20"
-                        onClick={() => updateStatus(order.id, 'Preparando')}
+                        onClick={() => updateStatus(order.id, 'confirmado')}
                       >
-                        <CheckCircle2 className="w-4 h-4 mr-2" /> PREPARAR
+                        <CheckCircle2 className="w-4 h-4 mr-2" /> CONFIRMAR
                       </Button>
                     )}
-                    {order.status === 'Preparando' && (
+                    {order.status === 'confirmado' && (
                       <Button 
                         className="flex-1 bg-accent text-black h-12 text-xs font-black tracking-widest rounded-full shadow-lg shadow-accent/20"
-                        onClick={() => updateStatus(order.id, 'En Camino')}
+                        onClick={() => updateStatus(order.id, 'preparando')}
                       >
-                        <Package className="w-4 h-4 mr-2" /> ENVIAR
+                        <Package className="w-4 h-4 mr-2" /> PREPARAR
                       </Button>
                     )}
-                    {order.status === 'En Camino' && (
+                    {order.status === 'preparando' && (
                       <Button 
                         className="flex-1 bg-green-500 text-white h-12 text-xs font-black tracking-widest rounded-full shadow-lg shadow-green-500/20"
-                        onClick={() => updateStatus(order.id, 'Entregado')}
+                        onClick={() => updateStatus(order.id, 'en_camino')}
                       >
                         <CheckCircle2 className="w-4 h-4 mr-2" /> ENTREGADO
+                      </Button>
+                    )}
+                    {order.status === 'en_camino' && (
+                      <Button
+                        className="flex-1 bg-green-500 text-white h-12 text-xs font-black tracking-widest rounded-full shadow-lg shadow-green-500/20"
+                        onClick={() => updateStatus(order.id, 'entregado')}
+                      >
+                        <Package className="w-4 h-4 mr-2" /> ENVIAR
                       </Button>
                     )}
                     <Button variant="outline" size="icon" className="h-12 w-12 rounded-full border-white/10 hover:bg-white/5">
