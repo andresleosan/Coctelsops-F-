@@ -20,6 +20,12 @@ describe("productInputSchema", () => {
     expect(productInputSchema.parse(validProduct)).toEqual(validProduct);
   });
 
+  it("acepta dos puntos en la ruta de una imagen permitida", () => {
+    const product = { ...validProduct, image: "https://picsum.photos/seed/foo:123/image.png" };
+
+    expect(productInputSchema.parse(product)).toEqual(product);
+  });
+
   it.each([
     ["precio cero", { price: 0 }],
     ["precio negativo", { price: -1 }],
