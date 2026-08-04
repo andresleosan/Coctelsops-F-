@@ -58,6 +58,17 @@ export async function verifyRequest(request: NextRequest): Promise<VerifiedUser>
   };
 }
 
+/** Use this boundary for operations that require a verified email, such as purchases. */
+export async function requireVerifiedEmail(request: NextRequest): Promise<VerifiedUser> {
+  const verified = await verifyRequest(request);
+
+  if (verified.token.email_verified !== true) {
+    throw new AuthorizationError(403, "Verifica tu correo antes de continuar");
+  }
+
+  return verified;
+}
+
 export function toAuthorizationResponse(error: unknown): Response {
   const status = error instanceof AuthorizationError ? error.status : 500;
   const message = status === 500 ? "No fue posible completar la solicitud" : (error as Error).message;

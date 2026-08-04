@@ -1,7 +1,8 @@
 import "server-only";
 
+import { AuthorizationError } from "@/lib/auth/verify-request";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { createAuditEntry } from "@/lib/firestore/audit";
+import { writeAuditInTransaction, createAuditEntry } from "@/lib/firestore/audit";
 import type { AccountType, AuthProfile, UserProfile } from "@/types/auth";
 
 const accountTypes = new Set<AccountType>(["customer", "staff", "admin"]);
@@ -32,6 +33,9 @@ export async function syncUser(uid: string, data: AuthProfile): Promise<UserProf
   const ref = getAdminDb().collection("users").doc(uid);
   const existing = await ref.get();
   const current = existing.exists ? toProfile(uid, (existing.data() ?? {}) as Record<string, unknown>) : null;
+  if (current && !current.active) {
+    throw new AuthorizationError(401, "La cuenta está inactiva");
+  }
   const now = new Date().toISOString();
   const profile: UserProfile = {
     uid,
@@ -57,11 +61,24 @@ export async function listUsers(): Promise<UserProfile[]> {
   return snapshot.docs.map((doc) => toProfile(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
 }
 
-export async function updateUser(uid: string, input: { active?: boolean; roleIds?: string[] }): Promise<void> {
-  const updates: Record<string, unknown> = {};
+export async function updateUser(uid: string, input: { active?: boolean; roleIds?: string[] }, actorUid = "system"): Promise<void> {
+  const updates: { active?: boolean; roleIds?: string[] } = {};
   if (input.active !== undefined) updates.active = input.active;
   if (input.roleIds !== undefined) updates.roleIds = input.roleIds;
-  await getAdminDb().collection("users").doc(uid).update(updates);
+  const db = getAdminDb();
+  const ref = db.collection("users").doc(uid);
+  await db.runTransaction(async (transaction) => {
+    const existing = await transaction.get(ref);
+    if (!existing.exists) throw new Error("Usuario no encontrado");
+    transaction.update(ref, updates);
+    writeAuditInTransaction(transaction, {
+      actorUid,
+      action: "update",
+      module: "usuarios",
+      entityId: uid,
+      changes: input,
+    });
+  });
 }
 
 export async function auditUserMutation(actorUid: string, uid: string, changes: Record<string, unknown>): Promise<void> {

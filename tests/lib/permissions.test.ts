@@ -11,8 +11,8 @@ vi.mock("@/lib/firebase-admin", () => ({
   getAdminDb: () => ({ collection: () => ({ doc: () => ({ get }) }) }),
 }));
 
-import { hasPermission, requirePermission } from "@/lib/auth/permissions";
-import { verifyRequest } from "@/lib/auth/verify-request";
+import { hasPermission, requirePermission, requireUserOwnership } from "@/lib/auth/permissions";
+import { requireVerifiedEmail, verifyRequest } from "@/lib/auth/verify-request";
 
 function request(token?: string): NextRequest {
   return new Request("http://localhost/api/test", {
@@ -87,5 +87,23 @@ describe("authorization", () => {
     verifyIdToken.mockResolvedValueOnce({ uid: "user-1", email: "admin@example.com", admin: false });
 
     await expect(requirePermission(request("token"), "roles.write")).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("rechaza una solicitud de correo no verificado con 403", async () => {
+    verifyIdToken.mockResolvedValueOnce({ uid: "user-1", email: "cliente@example.com", email_verified: false, admin: false });
+
+    await expect(requireVerifiedEmail(request("token"))).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("permite una solicitud de correo verificado", async () => {
+    verifyIdToken.mockResolvedValueOnce({ uid: "user-1", email: "cliente@example.com", email_verified: true, admin: false });
+
+    await expect(requireVerifiedEmail(request("token"))).resolves.toMatchObject({ uid: "user-1" });
+  });
+
+  it("rechaza que un usuario solicite el uid de otra persona", async () => {
+    const verified = await requirePermission(request("token"), "pedidos.read");
+
+    expect(() => requireUserOwnership(verified, "user-2")).toThrow();
   });
 });

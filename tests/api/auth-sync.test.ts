@@ -53,4 +53,15 @@ describe("POST /api/auth/sync", () => {
 
     expect(response.status).toBe(401);
   });
+
+  it("devuelve 401 sin actualizar cuando el perfil existente está inactivo", async () => {
+    syncUser.mockRejectedValueOnce(Object.assign(new Error("La cuenta está inactiva"), { status: 401 }));
+
+    const response = await POST(new Request("http://localhost/api/auth/sync", {
+      method: "POST",
+      headers: { authorization: "Bearer token" },
+    }));
+
+    expect(response.status).toBe(401);
+  });
 });

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { requirePermission } from "@/lib/auth/permissions";
 import { toAuthorizationResponse } from "@/lib/auth/verify-request";
-import { auditRoleMutation, createRole, listRoles } from "@/lib/firestore/roles";
+import { createRole, listRoles } from "@/lib/firestore/roles";
 import type { RoleInput } from "@/types/auth";
 
 const roleInputSchema = z.object({
@@ -31,8 +31,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const actor = await requirePermission(request as never, "roles.write");
     const input = roleInputSchema.parse(await request.json()) as RoleInput;
-    const id = await createRole(input);
-    await auditRoleMutation(actor.uid, id, "create", input);
+    const id = await createRole(input, actor.uid);
     return Response.json({ id }, { status: 201 });
   } catch (error) {
     return jsonError(error);

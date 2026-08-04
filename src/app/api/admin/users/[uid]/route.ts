@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { requirePermission } from "@/lib/auth/permissions";
 import { toAuthorizationResponse } from "@/lib/auth/verify-request";
-import { auditUserMutation, getUserProfile, updateUser } from "@/lib/firestore/users";
+import { getUserProfile, updateUser } from "@/lib/firestore/users";
 
 const updateSchema = z.object({
   active: z.boolean().optional(),
@@ -32,8 +32,7 @@ export async function PATCH(request: Request, context: Context): Promise<Respons
     const actor = await requirePermission(request as never, "usuarios.manage");
     const { uid } = await context.params;
     const input = updateSchema.parse(await request.json());
-    await updateUser(uid, input);
-    await auditUserMutation(actor.uid, uid, input);
+    await updateUser(uid, input, actor.uid);
     const user = await getUserProfile(uid);
     return Response.json({ user });
   } catch (error) {

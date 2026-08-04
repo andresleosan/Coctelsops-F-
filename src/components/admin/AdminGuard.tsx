@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -16,19 +16,23 @@ type SessionResponse = {
 };
 
 export function AdminGuard({ children, permission }: AdminGuardProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [allowed, setAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (loading) return;
 
     if (!user) {
-      const query = searchParams.toString();
+      const query = window.location.search;
       const destination = `${pathname}${query ? `?${query}` : ""}`;
       router.replace(`/admin/login?redirect=${encodeURIComponent(destination)}`);
+      return;
+    }
+
+    if (!isAdmin) {
+      setAllowed(false);
       return;
     }
 
@@ -43,9 +47,7 @@ export function AdminGuard({ children, permission }: AdminGuardProps) {
       }
       const data = (await response.json()) as SessionResponse;
       const permissions = data.user?.permissions ?? [];
-      setAllowed(permission
-        ? data.user?.accountType === "admin" || permissions.includes(permission)
-        : data.user?.accountType === "admin" || permissions.length > 0);
+      setAllowed(permission ? isAdmin || permissions.includes(permission) : isAdmin || permissions.length > 0);
     }).catch(() => {
       if (active) setAllowed(false);
     });
@@ -53,7 +55,7 @@ export function AdminGuard({ children, permission }: AdminGuardProps) {
     return () => {
       active = false;
     };
-  }, [loading, pathname, permission, router, searchParams, user]);
+  }, [isAdmin, loading, pathname, permission, router, user]);
 
   if (loading || !user || allowed === null) {
     return <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">Validando acceso...</div>;

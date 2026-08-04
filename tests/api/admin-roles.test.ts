@@ -38,7 +38,7 @@ describe("/api/admin/roles", () => {
     }));
 
     expect(response.status).toBe(201);
-    expect(createRole).toHaveBeenCalledWith({ name: "Operaciones", description: "", permissions: ["roles.write"], active: true });
+    expect(createRole).toHaveBeenCalledWith({ name: "Operaciones", description: "", permissions: ["roles.write"], active: true }, "admin-1");
   });
 
   it("rechaza campos de elevación no definidos por el contrato", async () => {

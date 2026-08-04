@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { requirePermission } from "@/lib/auth/permissions";
 import { toAuthorizationResponse } from "@/lib/auth/verify-request";
-import { auditRoleMutation, deleteRole, getRole, updateRole } from "@/lib/firestore/roles";
+import { deleteRole, getRole, updateRole } from "@/lib/firestore/roles";
 import type { RoleInput } from "@/types/auth";
 
 const roleInputSchema = z.object({
@@ -35,8 +35,7 @@ export async function PATCH(request: Request, context: Context): Promise<Respons
     const actor = await requirePermission(request as never, "roles.write");
     const { id } = await context.params;
     const input = roleInputSchema.parse(await request.json()) as RoleInput;
-    await updateRole(id, input);
-    await auditRoleMutation(actor.uid, id, "update", input);
+    await updateRole(id, input, actor.uid);
     return Response.json({ ok: true });
   } catch (error) {
     return errorResponse(error);
@@ -47,8 +46,7 @@ export async function DELETE(request: Request, context: Context): Promise<Respon
   try {
     const actor = await requirePermission(request as never, "roles.write");
     const { id } = await context.params;
-    await deleteRole(id);
-    await auditRoleMutation(actor.uid, id, "delete", {});
+    await deleteRole(id, actor.uid);
     return new Response(null, { status: 204 });
   } catch (error) {
     return errorResponse(error);

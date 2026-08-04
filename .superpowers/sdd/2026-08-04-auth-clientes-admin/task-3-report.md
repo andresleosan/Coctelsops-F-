@@ -52,3 +52,34 @@ Implemented and committed in `21408b2` (`feat: proteger usuarios y permisos admi
 - The public sync endpoint requires a valid Firebase token but does not yet have application-level rate limiting. Firebase Auth protections remain active; endpoint throttling should be added before high-volume production exposure.
 - Existing lint warnings and the `next lint` deprecation are outside Task 3 and were not changed.
 - Admin UI navigation is only a guard layer. Every future operational API must continue to call `verifyRequest` and `requirePermission` server-side.
+
+## Review Fixes
+
+Applied in the follow-up fix commit:
+
+- Added `requireVerifiedEmail(request)`, a separate server authorization boundary that requires `token.email_verified === true`; `/api/auth/sync` continues using token-only verification for new profiles.
+- Made `syncUser` reject existing inactive profiles before any write while preserving active `customer` creation for new profiles.
+- Moved role creation/update/deletion and user mutations plus their audit documents into Firestore transactions. Route handlers pass the verified actor UID into the repository transaction.
+- Added Firestore validation for every allowed `Address` field, optional `notes`, unknown-key rejection, and a bounded list of up to ten addresses.
+- Removed UI `accountType` authorization bypasses. `AdminGuard` and `PermissionGate` require `useAuth().isAdmin`, which is populated only from the strict boolean claim, and `AdminGuard` now wraps `/admin/dashboard`.
+- Added explicit `requireUserOwnership` denial coverage for requests targeting another UID.
+- Added regression coverage for verified email, inactive/new sync behavior, transactional audit writes, strict client guard contracts, and dashboard wiring.
+
+## Review-Fix Verification
+
+- Focused fixes: `npm test -- --run tests/lib/permissions.test.ts tests/api/auth-sync.test.ts tests/lib/users.test.ts tests/lib/firestore-atomic.test.ts tests/components/admin-guards.test.ts tests/api/admin-roles.test.ts`
+  - Result: 6 files passed, 22 tests passed.
+- Full available suite: `npm test`
+  - Result: 11 files passed, 59 tests passed.
+- `npm run typecheck`
+  - Result: passed.
+- `npm run lint`
+  - Result: passed with the existing warnings listed above.
+- `npm run build`
+  - Result: passed.
+- Firestore Rules Emulator load: `firebase emulators:exec --only firestore --config firebase.task3.json --project demo-task3 --non-interactive "node --version"`
+  - Result: Firestore emulator started and loaded `firestore.rules` successfully; the temporary config and log were removed afterward.
+
+## Deployment Hold
+
+The existing direct `addDoc(collection(db, 'orders'), ...)` in `src/app/checkout/page.tsx` was intentionally not changed. Deployment must remain blocked until Task 5 replaces direct order writes with the authenticated, verified-email, server-validated order API.

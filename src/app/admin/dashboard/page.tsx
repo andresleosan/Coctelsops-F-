@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Clock, Users, DollarSign, Package, RefreshCw, Eye, CheckCircle2 } from 'lucide-react';
 import { useMemoFirebase } from '@/firebase/firestore/use-memo-firebase';
 import { errorEmitter, FirestorePermissionError } from '@/firebase';
+import { AdminGuard } from '@/components/admin/AdminGuard';
 
 type OrderItem = {
   quantity?: number;
@@ -59,7 +60,8 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 md:py-12 bg-background min-h-screen">
+    <AdminGuard>
+      <div className="container mx-auto px-4 py-8 md:py-12 bg-background min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
         <div className="space-y-1">
           <h1 className="text-4xl md:text-5xl font-headline font-bold text-primary italic neon-text-magenta uppercase tracking-tighter">PANEL OPS</h1>
@@ -186,6 +188,7 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </AdminGuard>
   );
 }

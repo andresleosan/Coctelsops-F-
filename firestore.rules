@@ -18,6 +18,35 @@ service cloud.firestore {
       return signedIn() && resource.data.clienteUid == request.auth.uid;
     }
 
+    function validAddress(address) {
+      return address is map
+        && address.keys().hasAll(['id', 'alias', 'recipientName', 'phone', 'address', 'neighborhood', 'city'])
+        && address.keys().hasOnly(['id', 'alias', 'recipientName', 'phone', 'address', 'neighborhood', 'city', 'notes'])
+        && address.id is string
+        && address.alias is string
+        && address.recipientName is string
+        && address.phone is string
+        && address.address is string
+        && address.neighborhood is string
+        && address.city is string
+        && (!address.keys().hasAny(['notes']) || address.notes is string);
+    }
+
+    function validAddresses(addresses) {
+      return addresses is list
+        && addresses.size() <= 10
+        && (addresses.size() < 1 || validAddress(addresses[0]))
+        && (addresses.size() < 2 || validAddress(addresses[1]))
+        && (addresses.size() < 3 || validAddress(addresses[2]))
+        && (addresses.size() < 4 || validAddress(addresses[3]))
+        && (addresses.size() < 5 || validAddress(addresses[4]))
+        && (addresses.size() < 6 || validAddress(addresses[5]))
+        && (addresses.size() < 7 || validAddress(addresses[6]))
+        && (addresses.size() < 8 || validAddress(addresses[7]))
+        && (addresses.size() < 9 || validAddress(addresses[8]))
+        && (addresses.size() < 10 || validAddress(addresses[9]));
+    }
+
     match /users/{uid} {
       allow read: if isAdmin() || ownsUser(uid);
       allow create: if false;
@@ -28,7 +57,7 @@ service cloud.firestore {
         && (request.resource.data.displayName is string || request.resource.data.displayName == null)
         && (request.resource.data.photoURL is string || request.resource.data.photoURL == null)
         && (request.resource.data.telefono is string || request.resource.data.telefono == null)
-        && request.resource.data.addresses is list);
+        && validAddresses(request.resource.data.addresses));
       allow delete: if false;
     }
 

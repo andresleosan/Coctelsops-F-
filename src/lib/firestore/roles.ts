@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getAdminDb } from "@/lib/firebase-admin";
-import { createAuditEntry } from "@/lib/firestore/audit";
+import { createAuditEntry, writeAuditInTransaction } from "@/lib/firestore/audit";
 import type { Permission, Role, RoleInput } from "@/types/auth";
 
 function roleId(name: string): string {
@@ -30,23 +30,41 @@ export async function getRole(id: string): Promise<Role | null> {
   return snapshot.exists ? toRole(id, (snapshot.data() ?? {}) as Record<string, unknown>) : null;
 }
 
-export async function createRole(input: RoleInput): Promise<string> {
+export async function createRole(input: RoleInput, actorUid = "system"): Promise<string> {
   const id = roleId(input.name);
   if (!id) throw new Error("El nombre del rol no es válido");
-  const ref = getAdminDb().collection("roles").doc(id);
-  const existing = await ref.get();
-  if (existing.exists) throw new Error("El rol ya existe");
+  const db = getAdminDb();
+  const ref = db.collection("roles").doc(id);
   const now = new Date().toISOString();
-  await ref.create({ ...input, createdAt: now, updatedAt: now });
+  await db.runTransaction(async (transaction) => {
+    const existing = await transaction.get(ref);
+    if (existing.exists) throw new Error("El rol ya existe");
+    transaction.create(ref, { ...input, createdAt: now, updatedAt: now });
+    writeAuditInTransaction(transaction, { actorUid, action: "create", module: "roles", entityId: id, changes: input });
+  });
   return id;
 }
 
-export async function updateRole(id: string, input: RoleInput): Promise<void> {
-  await getAdminDb().collection("roles").doc(id).update({ ...input, updatedAt: new Date().toISOString() });
+export async function updateRole(id: string, input: RoleInput, actorUid = "system"): Promise<void> {
+  const db = getAdminDb();
+  const ref = db.collection("roles").doc(id);
+  await db.runTransaction(async (transaction) => {
+    const existing = await transaction.get(ref);
+    if (!existing.exists) throw new Error("Rol no encontrado");
+    transaction.update(ref, { ...input, updatedAt: new Date().toISOString() });
+    writeAuditInTransaction(transaction, { actorUid, action: "update", module: "roles", entityId: id, changes: input });
+  });
 }
 
-export async function deleteRole(id: string): Promise<void> {
-  await getAdminDb().collection("roles").doc(id).delete();
+export async function deleteRole(id: string, actorUid = "system"): Promise<void> {
+  const db = getAdminDb();
+  const ref = db.collection("roles").doc(id);
+  await db.runTransaction(async (transaction) => {
+    const existing = await transaction.get(ref);
+    if (!existing.exists) throw new Error("Rol no encontrado");
+    transaction.delete(ref);
+    writeAuditInTransaction(transaction, { actorUid, action: "delete", module: "roles", entityId: id, changes: {} });
+  });
 }
 
 export async function auditRoleMutation(actorUid: string, id: string, action: string, changes: Record<string, unknown>): Promise<void> {

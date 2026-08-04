@@ -12,12 +12,12 @@ type PermissionGateProps = {
 };
 
 export function PermissionGate({ permission, children, fallback = null }: PermissionGateProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
   const [allowed, setAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (loading) return;
-    if (!user) {
+    if (!user || !isAdmin) {
       setAllowed(false);
       return;
     }
@@ -31,7 +31,7 @@ export function PermissionGate({ permission, children, fallback = null }: Permis
         return;
       }
       const data = (await response.json()) as { user?: { accountType?: string; permissions?: Permission[] } };
-      setAllowed(data.user?.accountType === "admin" || data.user?.permissions?.includes(permission) === true);
+      setAllowed(isAdmin || data.user?.permissions?.includes(permission) === true);
     }).catch(() => {
       if (active) setAllowed(false);
     });
@@ -39,7 +39,7 @@ export function PermissionGate({ permission, children, fallback = null }: Permis
     return () => {
       active = false;
     };
-  }, [loading, permission, user]);
+  }, [isAdmin, loading, permission, user]);
 
   if (loading || allowed === null) return null;
   return allowed ? children : fallback;

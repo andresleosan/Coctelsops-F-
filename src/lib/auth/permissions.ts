@@ -48,3 +48,9 @@ export async function requirePermission(request: NextRequest, permission: Permis
 export function isUserOwner(user: VerifiedUser, uid: string): boolean {
   return user.uid === uid;
 }
+
+export function requireUserOwnership(user: VerifiedUser, uid: string): void {
+  if (!isUserOwner(user, uid)) {
+    throw new AuthorizationError(403, "No tienes permiso para acceder a este usuario");
+  }
+}
