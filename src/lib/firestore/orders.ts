@@ -53,9 +53,9 @@ function toOrder(id: string, data: Record<string, unknown>): Order {
   };
 }
 
-function requireStatusPermission(user: VerifiedUser): void {
-  if (!hasPermission(user.profile, "pedidos.update")) {
-    throw new AuthorizationError(403, "No tienes permiso para actualizar pedidos");
+function requireOrderPermission(user: VerifiedUser, permission: "pedidos.read" | "pedidos.update"): void {
+  if (!hasPermission(user.profile, permission)) {
+    throw new AuthorizationError(403, "No tienes permiso para acceder a los pedidos");
   }
 }
 
@@ -84,6 +84,12 @@ export async function createOrder(user: VerifiedUser, input: CreateOrderInput): 
   return { id: reference.id, ...data };
 }
 
+export async function listOrders(user: VerifiedUser): Promise<Order[]> {
+  requireOrderPermission(user, "pedidos.read");
+  const snapshot = await ordersCollection().orderBy("createdAt", "desc").limit(50).get();
+  return snapshot.docs.map((document) => toOrder(document.id, (document.data() ?? {}) as Record<string, unknown>));
+}
+
 export async function getCustomerOrder(user: VerifiedUser, id: string): Promise<Order> {
   if (!id.trim()) throw new OrderNotFoundError();
   const snapshot = await ordersCollection().doc(id).get();
@@ -94,7 +100,7 @@ export async function getCustomerOrder(user: VerifiedUser, id: string): Promise<
 }
 
 export async function updateOrderStatus(user: VerifiedUser, id: string, input: StatusUpdate): Promise<Order> {
-  requireStatusPermission(user);
+  requireOrderPermission(user, "pedidos.update");
   const validated = statusUpdateSchema.parse(input);
   const db = getAdminDb();
   const reference = db.collection("pedidos").doc(id);

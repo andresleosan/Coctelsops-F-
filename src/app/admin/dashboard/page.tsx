@@ -1,16 +1,15 @@
 
 'use client';
 
-import { useCollection, useFirestore } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Clock, Users, DollarSign, Package, RefreshCw, Eye, CheckCircle2 } from 'lucide-react';
-import { useMemoFirebase } from '@/firebase/firestore/use-memo-firebase';
 import { AdminGuard } from '@/components/admin/AdminGuard';
 import { useAuth } from '@/hooks/use-auth';
-import { useState } from 'react';
+import { getOrderAction } from '@/lib/orders/status-actions';
+import type { OrderStatus } from '@/types/orders';
+import { useEffect, useState } from 'react';
 
 type OrderItem = {
   quantity?: number;
@@ -23,7 +22,7 @@ type OrderItem = {
 type Order = {
   id: string;
   total?: number;
-  status: string;
+  status: OrderStatus;
   phone?: string;
   customerName?: string;
   items?: OrderItem[];
@@ -32,16 +31,42 @@ type Order = {
 };
 
 export default function AdminDashboard() {
-  const db = useFirestore();
   const { user } = useAuth();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState('');
 
-  const ordersQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, 'pedidos'), orderBy('createdAt', 'desc'), limit(50));
-  }, [db]);
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
-  const { data: orders, loading } = useCollection<Order>(ordersQuery);
+    let active = true;
+    setLoading(true);
+    void user.getIdToken().then(async (token) => {
+      const response = await fetch('/api/pedidos', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!active) return;
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { error?: string };
+        setActionError(body.error || 'No se pudieron cargar los pedidos.');
+        setOrders([]);
+      } else {
+        const body = await response.json() as { orders?: Order[] };
+        setOrders(body.orders ?? []);
+      }
+      setLoading(false);
+    }).catch(() => {
+      if (active) {
+        setActionError('No se pudo conectar con la central de pedidos.');
+        setLoading(false);
+      }
+    });
+
+    return () => { active = false; };
+  }, [user]);
 
   const stats = {
     totalSales: orders?.reduce((acc, curr) => acc + (curr.total || 0), 0) || 0,
@@ -123,7 +148,7 @@ export default function AdminDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {orders?.map((order) => (
+            {orders.map((order) => (
               <Card key={order.id} className="border-none bg-card/40 border border-white/5 shadow-2xl hover:border-primary/40 transition-all rounded-[2rem] overflow-hidden group">
                 <CardContent className="p-6 md:p-8 space-y-6">
                   <div className="flex justify-between items-start">
@@ -167,38 +192,19 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    {order.status === 'pendiente' && (
-                      <Button 
-                        className="flex-1 bg-primary text-white h-12 text-xs font-black tracking-widest rounded-full shadow-lg shadow-primary/20"
-                        onClick={() => updateStatus(order.id, 'confirmado')}
-                      >
-                        <CheckCircle2 className="w-4 h-4 mr-2" /> CONFIRMAR
-                      </Button>
-                    )}
-                    {order.status === 'confirmado' && (
-                      <Button 
-                        className="flex-1 bg-accent text-black h-12 text-xs font-black tracking-widest rounded-full shadow-lg shadow-accent/20"
-                        onClick={() => updateStatus(order.id, 'preparando')}
-                      >
-                        <Package className="w-4 h-4 mr-2" /> PREPARAR
-                      </Button>
-                    )}
-                    {order.status === 'preparando' && (
-                      <Button 
-                        className="flex-1 bg-green-500 text-white h-12 text-xs font-black tracking-widest rounded-full shadow-lg shadow-green-500/20"
-                        onClick={() => updateStatus(order.id, 'en_camino')}
-                      >
-                        <CheckCircle2 className="w-4 h-4 mr-2" /> ENTREGADO
-                      </Button>
-                    )}
-                    {order.status === 'en_camino' && (
-                      <Button
-                        className="flex-1 bg-green-500 text-white h-12 text-xs font-black tracking-widest rounded-full shadow-lg shadow-green-500/20"
-                        onClick={() => updateStatus(order.id, 'entregado')}
-                      >
-                        <Package className="w-4 h-4 mr-2" /> ENVIAR
-                      </Button>
-                    )}
+                    {(() => {
+                      const action = getOrderAction(order.status);
+                      if (!action) return null;
+                      return (
+                        <Button
+                          className="flex-1 bg-primary text-white h-12 text-xs font-black tracking-widest rounded-full shadow-lg shadow-primary/20"
+                          onClick={() => updateStatus(order.id, action.nextStatus)}
+                        >
+                          {action.nextStatus === 'entregado' ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <Package className="w-4 h-4 mr-2" />}
+                          {action.label}
+                        </Button>
+                      );
+                    })()}
                     <Button variant="outline" size="icon" className="h-12 w-12 rounded-full border-white/10 hover:bg-white/5">
                       <Eye className="w-5 h-5" />
                     </Button>

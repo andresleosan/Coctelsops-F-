@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireVerifiedEmail, requirePermission, createOrder, getCustomerOrder, updateOrderStatus } = vi.hoisted(() => ({
+const { requireVerifiedEmail, requirePermission, createOrder, listOrders, getCustomerOrder, updateOrderStatus } = vi.hoisted(() => ({
   requireVerifiedEmail: vi.fn(),
   requirePermission: vi.fn(),
   createOrder: vi.fn(),
+  listOrders: vi.fn(),
   getCustomerOrder: vi.fn(),
   updateOrderStatus: vi.fn(),
 }));
@@ -13,9 +14,9 @@ vi.mock("@/lib/auth/verify-request", () => ({
   toAuthorizationResponse: (error: Error & { status?: number }) => Response.json({ error: error.message }, { status: error.status ?? 500 }),
 }));
 vi.mock("@/lib/auth/permissions", () => ({ requirePermission }));
-vi.mock("@/lib/firestore/orders", () => ({ createOrder, getCustomerOrder, updateOrderStatus }));
+vi.mock("@/lib/firestore/orders", () => ({ createOrder, listOrders, getCustomerOrder, updateOrderStatus }));
 
-import { POST } from "@/app/api/pedidos/route";
+import { GET as GET_ORDERS, POST } from "@/app/api/pedidos/route";
 import { GET as GET_BY_ID, PATCH as PATCH_BY_ID } from "@/app/api/pedidos/[id]/route";
 
 describe("secure order APIs", () => {
@@ -24,6 +25,7 @@ describe("secure order APIs", () => {
     requireVerifiedEmail.mockResolvedValue({ uid: "customer-1" });
     requirePermission.mockResolvedValue({ uid: "staff-1", permissions: ["pedidos.update"] });
     createOrder.mockResolvedValue({ id: "pedido-1", clienteUid: "customer-1", total: 11500, status: "pendiente" });
+    listOrders.mockResolvedValue([{ id: "pedido-1", clienteUid: "customer-1", status: "pendiente" }]);
     getCustomerOrder.mockResolvedValue({ id: "pedido-1", clienteUid: "customer-1" });
     updateOrderStatus.mockResolvedValue({ id: "pedido-1", status: "confirmado" });
   });
@@ -51,6 +53,18 @@ describe("secure order APIs", () => {
     expect(createOrder.mock.calls[0][1]).not.toHaveProperty("status");
   });
 
+  it("lists orders for staff through the pedidos.read protected API", async () => {
+    const actor = { uid: "staff-1", permissions: ["pedidos.read"] };
+    requirePermission.mockResolvedValueOnce(actor);
+
+    const response = await GET_ORDERS(new Request("http://localhost/api/pedidos"));
+
+    expect(response.status).toBe(200);
+    expect(requirePermission).toHaveBeenCalledWith(expect.anything(), "pedidos.read");
+    expect(listOrders).toHaveBeenCalledWith(actor);
+    await expect(response.json()).resolves.toEqual({ orders: expect.any(Array) });
+  });
+
   it("maps validation failures to 422", async () => {
     createOrder.mockRejectedValueOnce(Object.assign(new Error("Carrito vacio"), { name: "ZodError" }));
 
@@ -73,6 +87,7 @@ describe("secure order APIs", () => {
   });
 
   it("requires pedidos.update for status changes", async () => {
+    requirePermission.mockResolvedValue({ uid: "staff-1", permissions: ["pedidos.update"] });
     const response = await PATCH_BY_ID(new Request("http://localhost/api/pedidos/pedido-1", {
       method: "PATCH",
       body: JSON.stringify({ status: "confirmado" }),

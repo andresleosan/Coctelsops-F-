@@ -1,7 +1,8 @@
 import { z } from "zod";
 
+import { requirePermission } from "@/lib/auth/permissions";
 import { requireVerifiedEmail, toAuthorizationResponse } from "@/lib/auth/verify-request";
-import { createOrder } from "@/lib/firestore/orders";
+import { createOrder, listOrders } from "@/lib/firestore/orders";
 import { OrderValidationError, createOrderInputSchema } from "@/lib/validation/orders";
 
 function toOrderResponse(error: unknown): Response {
@@ -18,6 +19,15 @@ export async function POST(request: Request): Promise<Response> {
     const input = createOrderInputSchema.parse(await request.json());
     const order = await createOrder(user, input);
     return Response.json({ order }, { status: 201 });
+  } catch (error) {
+    return toOrderResponse(error);
+  }
+}
+
+export async function GET(request: Request): Promise<Response> {
+  try {
+    const user = await requirePermission(request as never, "pedidos.read");
+    return Response.json({ orders: await listOrders(user) });
   } catch (error) {
     return toOrderResponse(error);
   }

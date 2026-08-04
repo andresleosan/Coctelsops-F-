@@ -6,6 +6,7 @@ import {
   assertOrderOwnership,
   assertValidTransition,
 } from "@/lib/validation/orders";
+import { getOrderAction } from "@/lib/orders/status-actions";
 import type { Product } from "@/types/catalog";
 
 const product: Product = {
@@ -102,5 +103,10 @@ describe("order validation", () => {
     expect(() => assertValidTransition("pendiente", "preparando")).toThrow(/transicion/i);
     expect(() => assertValidTransition("entregado", "cancelado")).toThrow(/transicion/i);
     expect(() => assertValidTransition("desconocido" as never, "confirmado")).toThrow(/transicion/i);
+  });
+
+  it("labels dashboard actions with their actual next state", () => {
+    expect(getOrderAction("preparando")).toEqual({ nextStatus: "en_camino", label: "ENVIAR" });
+    expect(getOrderAction("en_camino")).toEqual({ nextStatus: "entregado", label: "ENTREGADO" });
   });
 });

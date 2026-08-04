@@ -57,3 +57,12 @@ The source scan found no browser `addDoc`, `updateDoc`, `setDoc`, or `deleteDoc`
 - Lint reports existing warnings in unrelated files (`layout.tsx`, `page.tsx`, `Footer.tsx`, `use-memo-firebase.tsx`, and `use-toast.ts`).
 - Promotion codes are rejected until the promotions domain is implemented; no unvalidated discount is accepted.
 - No rate limiting was introduced for the new endpoints; Firebase Auth and token validation remain the current abuse controls.
+
+## Review Fixes
+
+The Task 5 review identified two issues and both are corrected here:
+
+- Staff with `pedidos.read` now load the admin order list through `GET /api/pedidos`. The route requires `requirePermission(request, "pedidos.read")`, and `listOrders` repeats the permission check before using Firebase Admin to read `pedidos`. The dashboard no longer imports or uses the browser Firestore listener, while customer reads remain owner-checked through `GET /api/pedidos/[id]`.
+- Dashboard status labels now derive from the validated transition map. `preparando` shows `ENVIAR` and transitions to `en_camino`; `en_camino` shows `ENTREGADO` and transitions to `entregado`.
+
+Regression coverage was added for the protected staff list route and both status action mappings. The focused RED run failed because the new API/helper contracts were absent; the GREEN run passed with 15 focused tests. Final verification passed with 102 full-suite tests, typecheck, lint, and build.
