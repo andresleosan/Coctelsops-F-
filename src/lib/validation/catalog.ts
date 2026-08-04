@@ -3,7 +3,7 @@ import { z } from "zod";
 import { PRODUCT_CATEGORIES } from "@/types/catalog";
 
 const imageSchema = z.string().trim().min(1).refine((value) => {
-  if (value.startsWith("/")) return true;
+  if (value.startsWith("/") && !value.startsWith("//")) return true;
 
   try {
     const url = new URL(value);

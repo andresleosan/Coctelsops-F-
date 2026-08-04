@@ -27,6 +27,7 @@ describe("productInputSchema", () => {
     ["categoría inválida", { category: "bebida" }],
     ["stock negativo", { stock: -1 }],
     ["imagen mal formada", { image: "not-a-url" }],
+    ["imagen con host relativo", { image: "//example.com/image.png" }],
   ])("rechaza %s", (_case, override) => {
     expect(() => productInputSchema.parse({ ...validProduct, ...override })).toThrow();
   });
