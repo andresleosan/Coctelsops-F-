@@ -1,0 +1,50 @@
+import "server-only";
+
+import type { NextRequest } from "next/server";
+
+import { getAdminDb } from "@/lib/firebase-admin";
+import type { Permission, Role, UserProfile, VerifiedUser } from "@/types/auth";
+import { AuthorizationError, verifyRequest } from "@/lib/auth/verify-request";
+
+function isPermission(value: unknown): value is Permission {
+  return typeof value === "string" && /^[^.]+\.[^.]+$/.test(value);
+}
+
+export async function resolvePermissions(user: UserProfile): Promise<Permission[]> {
+  if (user.accountType === "admin") {
+    return [];
+  }
+
+  const roles = await Promise.all(
+    user.roleIds.map(async (roleId) => {
+      const snapshot = await getAdminDb().collection("roles").doc(roleId).get();
+      if (!snapshot.exists) return null;
+      const role = snapshot.data() as Role | undefined;
+      return role?.active ? role : null;
+    }),
+  );
+
+  return [...new Set(roles.flatMap((role) => role?.permissions ?? []).filter(isPermission))];
+}
+
+export function hasPermission(user: UserProfile, permission: Permission): boolean {
+  return user.active && (user.accountType === "admin" || user.permissions?.includes(permission) === true);
+}
+
+export async function requirePermission(request: NextRequest, permission: Permission): Promise<VerifiedUser> {
+  const verified = await verifyRequest(request);
+  const permissions = await resolvePermissions(verified.profile);
+  const profile = { ...verified.profile, permissions };
+  const hasAdminClaim = verified.token.admin === true && profile.accountType === "admin";
+  const hasRolePermission = profile.accountType !== "admin" && permissions.includes(permission);
+
+  if (!hasAdminClaim && !hasRolePermission) {
+    throw new AuthorizationError(403, "No tienes permiso para realizar esta acción");
+  }
+
+  return { ...verified, profile, permissions };
+}
+
+export function isUserOwner(user: VerifiedUser, uid: string): boolean {
+  return user.uid === uid;
+}
