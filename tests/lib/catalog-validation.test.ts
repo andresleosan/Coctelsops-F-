@@ -6,7 +6,7 @@ const validProduct = {
   name: "Fresa Salvaje",
   description: "Granizado de fresa natural.",
   price: 8500,
-  image: "https://example.com/fresa.png",
+  image: "https://picsum.photos/seed/fresa/600/600",
   category: "granizado",
   availableFlavors: ["Fresa", "Mora"],
   availableAddOns: [{ name: "Gomitas", price: 1500 }],
@@ -28,6 +28,7 @@ describe("productInputSchema", () => {
     ["stock negativo", { stock: -1 }],
     ["imagen mal formada", { image: "not-a-url" }],
     ["imagen con host relativo", { image: "//example.com/image.png" }],
+    ["host de imagen no configurado", { image: "https://example.com/image.png" }],
   ])("rechaza %s", (_case, override) => {
     expect(() => productInputSchema.parse({ ...validProduct, ...override })).toThrow();
   });

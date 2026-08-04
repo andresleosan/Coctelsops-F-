@@ -1,15 +1,24 @@
 import "server-only";
 
 import { getAdminDb } from "@/lib/firebase-admin";
+import { AuthorizationError } from "@/lib/auth/verify-request";
 import { productInputSchema } from "@/lib/validation/catalog";
-import type { Product, ProductInput } from "@/types/catalog";
+import type { CatalogCaller, CatalogPermission, Product, ProductInput } from "@/types/catalog";
 
-type ProductReadOptions = {
-  includeInactive?: boolean;
-};
+type ProductReadOptions = { includeInactive?: false } | { includeInactive: true; caller: CatalogCaller };
+type InternalProductReadOptions = { includeInactive?: boolean; caller?: CatalogCaller };
 
 function productCollection() {
   return getAdminDb().collection("productos");
+}
+
+function requireCatalogPermission(caller: CatalogCaller | undefined, permission: CatalogPermission): void {
+  const isAdmin = caller?.token.admin === true && caller.profile.accountType === "admin";
+  const isAllowed = caller?.profile.active === true && (isAdmin || caller.permissions.includes(permission));
+
+  if (!isAllowed) {
+    throw new AuthorizationError(403, "No tienes permiso para acceder al catálogo");
+  }
 }
 
 function toProduct(id: string, data: Record<string, unknown>): Product {
@@ -29,7 +38,9 @@ function toProduct(id: string, data: Record<string, unknown>): Product {
   return { id, ...input };
 }
 
-export async function listProducts(options: ProductReadOptions = {}): Promise<Product[]> {
+async function listProducts(options: InternalProductReadOptions = {}): Promise<Product[]> {
+  if (options.includeInactive) requireCatalogPermission(options.caller, "productos.read");
+
   const query = options.includeInactive
     ? productCollection()
     : productCollection().where("active", "==", true);
@@ -42,12 +53,15 @@ export function listActiveProducts(): Promise<Product[]> {
   return listProducts();
 }
 
-export function listAllProducts(): Promise<Product[]> {
-  return listProducts({ includeInactive: true });
+export function listAllProducts(caller: CatalogCaller): Promise<Product[]> {
+  return listProducts({ includeInactive: true, caller });
 }
 
+export function getProductById(id: string): Promise<Product | null>;
+export function getProductById(id: string, options: { includeInactive: true; caller: CatalogCaller }): Promise<Product | null>;
 export async function getProductById(id: string, options: ProductReadOptions = {}): Promise<Product | null> {
   if (!id.trim()) return null;
+  if (options.includeInactive) requireCatalogPermission(options.caller, "productos.read");
 
   const snapshot = await productCollection().doc(id).get();
   if (!snapshot.exists) return null;
@@ -56,7 +70,8 @@ export async function getProductById(id: string, options: ProductReadOptions = {
   return options.includeInactive || product.active ? product : null;
 }
 
-export async function createProduct(input: ProductInput, id?: string): Promise<string> {
+export async function createProduct(input: ProductInput, caller: CatalogCaller, id?: string): Promise<string> {
+  requireCatalogPermission(caller, "productos.write");
   const validated = productInputSchema.parse(input);
   const reference = id ? productCollection().doc(id) : productCollection().doc();
   const now = new Date().toISOString();
@@ -65,7 +80,13 @@ export async function createProduct(input: ProductInput, id?: string): Promise<s
   return reference.id;
 }
 
-export async function updateProduct(id: string, input: ProductInput): Promise<void> {
+export async function updateProduct(id: string, input: ProductInput, caller: CatalogCaller): Promise<void> {
+  requireCatalogPermission(caller, "productos.write");
   const validated = productInputSchema.parse(input);
   await productCollection().doc(id).update({ ...validated, updatedAt: new Date().toISOString() });
+}
+
+export async function seedProduct(input: ProductInput, id: string): Promise<void> {
+  const validated = productInputSchema.parse(input);
+  await productCollection().doc(id).set({ ...validated, updatedAt: new Date().toISOString() }, { merge: true });
 }

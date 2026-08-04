@@ -1,17 +1,9 @@
 import { z } from "zod";
 
+import { isAllowedCatalogImage } from "@/lib/catalog/image-hosts";
 import { PRODUCT_CATEGORIES } from "@/types/catalog";
 
-const imageSchema = z.string().trim().min(1).refine((value) => {
-  if (value.startsWith("/") && !value.startsWith("//")) return true;
-
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}, "La imagen debe ser una URL HTTP(S) o una ruta local válida");
+const imageSchema = z.string().trim().min(1).refine(isAllowedCatalogImage, "La imagen no pertenece a un host permitido");
 
 const addOnSchema = z.object({
   name: z.string().trim().min(1, "El nombre de la adición es obligatorio"),

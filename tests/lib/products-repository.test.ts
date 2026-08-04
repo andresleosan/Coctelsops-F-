@@ -21,20 +21,41 @@ import {
   createProduct,
   getProductById,
   listActiveProducts,
+  listAllProducts,
   updateProduct,
 } from "@/lib/firestore/products";
+import type { CatalogCaller } from "@/types/catalog";
 
 const productInput = {
   name: "Fresa Salvaje",
   description: "Granizado de fresa natural.",
   price: 8500,
-  image: "https://example.com/fresa.png",
+  image: "https://picsum.photos/seed/fresa/600/600",
   category: "granizado" as const,
   availableFlavors: ["Fresa"],
   availableAddOns: [{ name: "Gomitas", price: 1500 }],
   stock: 10,
   active: true,
   featured: false,
+};
+
+const caller: CatalogCaller = {
+  uid: "admin-1",
+  token: { uid: "admin-1", admin: true },
+  profile: {
+    uid: "admin-1",
+    email: "admin@example.com",
+    displayName: "Admin",
+    photoURL: null,
+    telefono: null,
+    addresses: [],
+    active: true,
+    accountType: "admin",
+    roleIds: [],
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lastLoginAt: "2026-01-01T00:00:00.000Z",
+  },
+  permissions: ["productos.read", "productos.write"],
 };
 
 describe("products repository", () => {
@@ -72,16 +93,50 @@ describe("products repository", () => {
   it("permite a una lectura administrativa incluir un producto inactivo", async () => {
     get.mockResolvedValueOnce({ exists: true, data: () => ({ ...productInput, active: false }) });
 
-    await expect(getProductById("1", { includeInactive: true })).resolves.toMatchObject({ id: "1", active: false });
+    await expect(getProductById("1", { includeInactive: true, caller })).resolves.toMatchObject({ id: "1", active: false });
   });
 
-  it("valida y escribe productos con el mismo id estable", async () => {
-    await expect(createProduct(productInput, "1")).resolves.toBe("1");
+  it("rechaza una lectura inactiva sin un caller autorizado", async () => {
+    await expect(getProductById("1", { includeInactive: true } as never)).rejects.toMatchObject({ status: 403 });
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("permite listar productos inactivos con permiso de lectura", async () => {
+    get.mockResolvedValueOnce({ docs: [] });
+
+    await expect(listAllProducts(caller)).resolves.toEqual([]);
+    expect(collection).toHaveBeenCalledWith("productos");
+    expect(where).not.toHaveBeenCalled();
+  });
+
+  it("permite a un staff activo con permiso explícito leer inactivos", async () => {
+    const staff = {
+      ...caller,
+      token: { uid: "staff-1", admin: false },
+      profile: { ...caller.profile, uid: "staff-1", accountType: "staff" as const },
+      permissions: ["productos.read" as const],
+    };
+    get.mockResolvedValueOnce({ exists: true, data: () => ({ ...productInput, active: false }) });
+
+    await expect(getProductById("1", { includeInactive: true, caller: staff })).resolves.toMatchObject({ active: false });
+  });
+
+  it("valida y escribe productos solo con permiso de escritura", async () => {
+    await expect(createProduct(productInput, caller, "1")).resolves.toBe("1");
     expect(doc).toHaveBeenCalledWith("1");
     expect(set).toHaveBeenCalledWith(expect.objectContaining(productInput));
 
-    await updateProduct("1", { ...productInput, price: 9000 });
+    await updateProduct("1", { ...productInput, price: 9000 }, caller);
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ price: 9000 }));
+  });
+
+  it("rechaza escrituras sin permiso de catálogo", async () => {
+    const customer = { ...caller, profile: { ...caller.profile, accountType: "customer" as const }, permissions: [] };
+
+    await expect(createProduct(productInput, customer, "1")).rejects.toMatchObject({ status: 403 });
+    await expect(updateProduct("1", productInput, customer)).rejects.toMatchObject({ status: 403 });
+    expect(set).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("lista solo categorías activas", async () => {

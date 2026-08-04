@@ -1,4 +1,5 @@
 import type {NextConfig} from 'next';
+import { CATALOG_IMAGE_HOSTS } from './src/lib/catalog/image-hosts';
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -8,24 +9,12 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'placehold.co',
+      ...CATALOG_IMAGE_HOSTS.map((hostname) => ({
+        protocol: 'https' as const,
+        hostname,
         port: '',
         pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'picsum.photos',
-        port: '',
-        pathname: '/**',
-      },
+      })),
     ],
   },
 };

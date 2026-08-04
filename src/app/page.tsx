@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, Truck, MessageSquare, MapPin, Star } from 'lucide-react';
 import ProductCard from '@/components/products/ProductCard';
 import CocktailCarousel from '@/components/products/CocktailCarousel';
-import { PRODUCTS } from './lib/products';
+import { getFeaturedProducts } from '@/lib/catalog/home';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
-export default function Home() {
-  const featuredProducts = PRODUCTS.slice(0, 3);
+export default async function Home() {
+  const featuredProducts = await getFeaturedProducts();
   
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-granizado')?.imageUrl || 'https://picsum.photos/seed/ops-hero/1200/800';
   const logoImage = PlaceHolderImages.find(img => img.id === 'logo-ops')?.imageUrl || 'https://picsum.photos/seed/ops-logo/600/600';

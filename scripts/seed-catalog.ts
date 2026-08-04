@@ -1,5 +1,6 @@
-import { getAdminDb } from "@/lib/firebase-admin";
 import { PRODUCTS } from "@/app/lib/products";
+import { seedProduct } from "@/lib/firestore/products";
+import { getAdminDb } from "@/lib/firebase-admin";
 import type { CategoryInput } from "@/types/catalog";
 
 const CATEGORY_SEEDS: Record<string, CategoryInput> = {
@@ -14,7 +15,7 @@ export async function seedCatalog(): Promise<void> {
 
   for (const product of PRODUCTS) {
     const { id, ...input } = product;
-    await db.collection("productos").doc(id).set({ ...input, updatedAt: now }, { merge: true });
+    await seedProduct(input, id);
   }
 
   for (const [id, input] of Object.entries(CATEGORY_SEEDS)) {

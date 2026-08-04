@@ -1,3 +1,5 @@
+import type { VerifiedUser } from "@/types/auth";
+
 export const PRODUCT_CATEGORIES = ["granizado", "cocktail", "special"] as const;
 
 export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
@@ -22,6 +24,9 @@ export type Product = {
 };
 
 export type ProductInput = Omit<Product, "id">;
+
+export type CatalogPermission = "productos.read" | "productos.write";
+export type CatalogCaller = VerifiedUser;
 
 export type Category = {
   id: string;
