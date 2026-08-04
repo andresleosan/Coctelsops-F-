@@ -10,12 +10,14 @@ interface FirebaseContextType {
   app: FirebaseApp | null;
   db: Firestore | null;
   auth: Auth | null;
+  initialized: boolean;
 }
 
 const FirebaseContext = createContext<FirebaseContextType>({
   app: null,
   db: null,
   auth: null,
+  initialized: false,
 });
 
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
@@ -23,11 +25,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     app: null,
     db: null,
     auth: null,
+    initialized: false,
   });
 
   useEffect(() => {
     const { app, db, auth } = initializeFirebase();
-    setServices({ app, db, auth });
+    setServices({ app, db, auth, initialized: true });
   }, []);
 
   return (

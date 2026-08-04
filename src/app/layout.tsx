@@ -5,6 +5,8 @@ import { CartProvider } from '@/context/cart-context';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { Toaster } from '@/components/ui/toaster';
+import { FirebaseProvider } from '@/firebase';
+import { AuthProvider } from '@/components/auth/AuthProvider';
 
 export const metadata: Metadata = {
   title: 'Coctels OPS | ¡¡ QUE CHIMBA UN OPS !!',
@@ -24,14 +26,18 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased min-h-screen flex flex-col bg-background selection:bg-primary selection:text-primary-foreground">
-        <CartProvider>
-          <Header />
-          <main className="flex-grow">
-            {children}
-          </main>
-          <Footer />
-          <Toaster />
-        </CartProvider>
+        <FirebaseProvider>
+          <AuthProvider>
+            <CartProvider>
+              <Header />
+              <main className="flex-grow">
+                {children}
+              </main>
+              <Footer />
+              <Toaster />
+            </CartProvider>
+          </AuthProvider>
+        </FirebaseProvider>
       </body>
     </html>
   );

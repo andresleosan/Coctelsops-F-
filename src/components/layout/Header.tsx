@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ShoppingCart, Menu, GlassWater, BrainCircuit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/cart-context';
+import { AuthStatus } from '@/components/auth/AuthStatus';
 import {
   Sheet,
   SheetContent,
@@ -66,6 +67,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-4">
+          <AuthStatus />
           <Link href="/cart">
             <Button variant="ghost" size="icon" className="relative">
               <ShoppingCart className="w-5 h-5" />

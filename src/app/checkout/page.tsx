@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCart } from '@/context/cart-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,9 +14,11 @@ import { CheckCircle2, CreditCard, Wallet, Truck, ArrowLeft } from 'lucide-react
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function CheckoutPage() {
   const { totalPrice, items, clearCart } = useCart();
+  const { user, loading: authLoading, isVerified } = useAuth();
   const db = useFirestore();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,6 +28,20 @@ export default function CheckoutPage() {
     address: '',
     notes: ''
   });
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!user) {
+      router.replace('/login?redirect=%2Fcheckout');
+    } else if (!isVerified) {
+      router.replace('/verificar-email');
+    }
+  }, [authLoading, isVerified, router, user]);
+
+  if (authLoading || !user || !isVerified) {
+    return <div className="container mx-auto flex min-h-[50vh] items-center justify-center px-4 text-muted-foreground">Verificando tu acceso...</div>;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +70,7 @@ export default function CheckoutPage() {
         clearCart();
         router.push(`/order-status/${docRef.id}`);
       })
-      .catch(async (error) => {
+      .catch(async () => {
         const permissionError = new FirestorePermissionError({
           path: 'orders',
           operation: 'create',
