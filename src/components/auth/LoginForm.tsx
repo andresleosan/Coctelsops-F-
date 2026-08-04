@@ -8,11 +8,8 @@ import { Chrome } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { safeDestination } from '@/lib/auth-redirect';
 import { loginWithEmail, loginWithGoogle, translateAuthError } from '@/lib/auth-client';
-
-function safeDestination(value: string | undefined): string {
-  return value?.startsWith('/') && !value.startsWith('//') ? value : '/';
-}
 
 export function LoginForm({ redirectTo }: { redirectTo?: string }) {
   const router = useRouter();

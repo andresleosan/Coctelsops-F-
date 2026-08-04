@@ -50,6 +50,7 @@ export default function Header() {
               </SheetHeader>
               <nav className="flex flex-col gap-4 mt-8" onClick={() => setIsOpen(false)}>
                 <NavItems />
+                <AuthStatus mobileMenu />
               </nav>
             </SheetContent>
           </Sheet>

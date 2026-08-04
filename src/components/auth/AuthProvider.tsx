@@ -1,10 +1,11 @@
 'use client';
 
 import { onIdTokenChanged, type User } from 'firebase/auth';
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 import { useFirebase } from '@/firebase';
 import { esClaimAdmin } from '@/lib/auth-claims';
+import { isCurrentAuthSession } from '@/lib/auth-session';
 
 type AuthContextValue = {
   user: User | null;
@@ -21,6 +22,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const sessionVersion = useRef(0);
+  const currentUser = useRef<User | null>(null);
 
   const refreshClaims = useCallback(async () => {
     if (!user) {
@@ -28,16 +31,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const refreshVersion = sessionVersion.current;
+    const refreshUser = user;
+
     try {
-      const token = await user.getIdTokenResult(true);
-      setIsAdmin(esClaimAdmin(token.claims));
+      const token = await refreshUser.getIdTokenResult(true);
+      if (isCurrentAuthSession(sessionVersion.current, refreshVersion) && currentUser.current === refreshUser) {
+        setIsAdmin(esClaimAdmin(token.claims));
+      }
     } catch {
-      setIsAdmin(false);
+      if (isCurrentAuthSession(sessionVersion.current, refreshVersion) && currentUser.current === refreshUser) {
+        setIsAdmin(false);
+      }
     }
   }, [user]);
 
   useEffect(() => {
     if (!auth) {
+      sessionVersion.current += 1;
+      currentUser.current = null;
       setUser(null);
       setIsAdmin(false);
       setLoading(true);
@@ -46,6 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let mounted = true;
     const unsubscribe = onIdTokenChanged(auth, (nextUser) => {
+      const callbackVersion = ++sessionVersion.current;
+      currentUser.current = nextUser;
       setUser(nextUser);
 
       if (!nextUser) {
@@ -57,13 +71,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       void nextUser
         .getIdTokenResult(true)
         .then((token) => {
-          if (mounted) {
+          if (mounted && isCurrentAuthSession(sessionVersion.current, callbackVersion) && currentUser.current === nextUser) {
             setIsAdmin(esClaimAdmin(token.claims));
             setLoading(false);
           }
         })
         .catch(() => {
-          if (mounted) {
+          if (mounted && isCurrentAuthSession(sessionVersion.current, callbackVersion) && currentUser.current === nextUser) {
             setIsAdmin(false);
             setLoading(false);
           }
@@ -72,6 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
+      sessionVersion.current += 1;
+      currentUser.current = null;
       unsubscribe();
     };
   }, [auth]);

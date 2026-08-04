@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { logout } from '@/lib/auth-client';
 
-export function AuthStatus() {
+export function AuthStatus({ mobileMenu = false }: { mobileMenu?: boolean }) {
   const { user, loading, isAdmin } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -25,6 +25,23 @@ export function AuthStatus() {
         <Button size="sm" className="px-2 text-xs sm:px-3" asChild>
           <Link href="/registro">Crear cuenta</Link>
         </Button>
+      </div>
+    );
+  }
+
+  if (mobileMenu) {
+    return (
+      <div className="flex flex-col gap-3 border-t border-border pt-4">
+        <Link href="/cuenta" className="flex items-center gap-2 text-sm font-medium text-primary hover:text-accent transition-colors">
+          <UserRound className="h-5 w-5" />
+          Mi cuenta
+        </Link>
+        {isAdmin && (
+          <Link href="/admin/dashboard" className="flex items-center gap-2 text-sm font-medium text-accent hover:text-primary transition-colors">
+            <ShieldCheck className="h-5 w-5" />
+            Panel de administración
+          </Link>
+        )}
       </div>
     );
   }
