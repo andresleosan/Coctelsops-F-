@@ -117,7 +117,7 @@ export default function Home() {
                 <MapPin className="w-5 h-5 text-accent shrink-0" />
                 <div className="space-y-0.5">
                   <p className="text-xs text-white font-medium">Carrera 37 # 66 D 36, Villa Hermosa</p>
-                  <p className="text-[10px] text-muted-foreground italic tracking-wide">"Llegamos frío y potente a todo el barrio."</p>
+                  <p className="text-[10px] text-muted-foreground italic tracking-wide">&quot;Llegamos frío y potente a todo el barrio.&quot;</p>
                 </div>
               </div>
             </div>

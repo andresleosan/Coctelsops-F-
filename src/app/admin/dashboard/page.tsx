@@ -10,6 +10,23 @@ import { Clock, Users, DollarSign, Package, RefreshCw, Eye, CheckCircle2 } from 
 import { useMemoFirebase } from '@/firebase/firestore/use-memo-firebase';
 import { errorEmitter, FirestorePermissionError } from '@/firebase';
 
+type OrderItem = {
+  quantity?: number;
+  name?: string;
+  price?: number;
+};
+
+type Order = {
+  id: string;
+  total?: number;
+  status: string;
+  phone?: string;
+  customerName?: string;
+  items?: OrderItem[];
+  address?: string;
+  notes?: string;
+};
+
 export default function AdminDashboard() {
   const db = useFirestore();
 
@@ -18,12 +35,12 @@ export default function AdminDashboard() {
     return query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(50));
   }, [db]);
 
-  const { data: orders, loading } = useCollection(ordersQuery);
+  const { data: orders, loading } = useCollection<Order>(ordersQuery);
 
   const stats = {
-    totalSales: orders?.reduce((acc, curr: any) => acc + (curr.total || 0), 0) || 0,
-    pending: orders?.filter((o: any) => o.status === 'Pendiente').length || 0,
-    newClients: new Set(orders?.map((o: any) => o.phone)).size || 0,
+    totalSales: orders?.reduce((acc, curr) => acc + (curr.total || 0), 0) || 0,
+    pending: orders?.filter((o) => o.status === 'Pendiente').length || 0,
+    newClients: new Set(orders?.map((o) => o.phone)).size || 0,
     totalOrders: orders?.length || 0
   };
 
@@ -91,7 +108,7 @@ export default function AdminDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {orders?.map((order: any) => (
+            {orders?.map((order) => (
               <Card key={order.id} className="border-none bg-card/40 border border-white/5 shadow-2xl hover:border-primary/40 transition-all rounded-[2rem] overflow-hidden group">
                 <CardContent className="p-6 md:p-8 space-y-6">
                   <div className="flex justify-between items-start">
@@ -112,7 +129,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="space-y-3 py-4 border-y border-white/5">
-                    {order.items?.map((it: any, idx: number) => (
+                    {order.items?.map((it, idx: number) => (
                       <div key={idx} className="flex justify-between text-sm text-white/80">
                         <span className="font-light">{it.quantity}x {it.name}</span>
                         <span className="font-bold text-white">${it.price?.toLocaleString()}</span>
