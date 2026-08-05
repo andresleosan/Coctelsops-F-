@@ -1,7 +1,8 @@
 # Reporte de Release: Auth, Clientes y Panel Administrativo
 
 Fecha: 2026-08-04
-Base revisada: `d63b23b..82b4ef3`
+Task 10 revisada: base `82b4ef3`, head `12a8a37`
+Rango amplio de implementación previa: `d63b23b..82b4ef3`
 Alcance: Task 10, verificación y documentación del trabajo de autenticación, cuentas, checkout seguro, operaciones administrativas y migración idempotente.
 
 ## Cambios de Task 10
@@ -11,6 +12,11 @@ Alcance: Task 10, verificación y documentación del trabajo de autenticación, 
 - `firebase.json` añadido para referenciar `firestore.rules` y `firestore.indexes.json` sin credenciales.
 - Playwright añadido como dependencia de desarrollo y `npm run test:e2e` limitado a `tests/e2e` para no descubrir los tests de Vitest.
 - `tests/e2e/auth-checkout-admin.spec.ts` cubre registro, barrera de verificación, login, perfil, checkout autenticado, historial, navegación limitada, actualización de estado, logout y mock de navegación a WhatsApp.
+
+## Correcciones posteriores de revisión
+
+- El escenario administrativo crea su propio pedido mediante un helper local; ya no depende del test de cliente, de `orderId` global ni de ejecución serial.
+- La limpieza E2E es opt-in (`E2E_CLEANUP=true`) y solo permite borrar pedidos y usuarios de registro generados cuando `FIREBASE_PROJECT_ID` coincide con `E2E_CLEANUP_PROJECT_ID` y el ID contiene `-e2e`.
 
 ## Verificación automatizada
 
