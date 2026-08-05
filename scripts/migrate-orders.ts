@@ -25,7 +25,6 @@ type DocumentSnapshotLike = {
 
 type DocumentReferenceLike = {
   get(): Promise<{ exists?: boolean; data(): unknown }>;
-  set(data: Record<string, unknown>): Promise<unknown>;
 };
 
 type CollectionLike = {
@@ -33,8 +32,14 @@ type CollectionLike = {
   doc(id: string): DocumentReferenceLike;
 };
 
+type TransactionLike = {
+  get(reference: DocumentReferenceLike): Promise<{ exists?: boolean; data(): unknown }>;
+  create(reference: DocumentReferenceLike, data: Record<string, unknown>): unknown;
+};
+
 export type MigrationDb = {
   collection(name: string): CollectionLike;
+  runTransaction<T>(callback: (transaction: TransactionLike) => Promise<T>): Promise<T>;
 };
 
 export type MigrationOptions = {
@@ -54,9 +59,7 @@ export type MigrationSummary = {
 
 export type MigrationMismatch = {
   id: string;
-  field: "id" | "total" | "itemCount" | "status" | "createdAt";
-  source?: unknown;
-  target?: unknown;
+  field: string;
 };
 
 export type MigrationVerification = {
@@ -84,20 +87,54 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
-function asNumber(value: unknown, fallback = 0): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+function requiredNumber(value: unknown, field: string, options: { integer?: boolean; min?: number } = {}): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${field} legado debe ser un número finito`);
+  }
+  if (options.integer && !Number.isInteger(value)) {
+    throw new Error(`${field} legado debe ser un número entero`);
+  }
+  if (options.min !== undefined && value < options.min) {
+    throw new Error(`${field} legado debe ser mayor o igual a ${options.min}`);
+  }
+  return value;
 }
 
-function toIso(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === "number") return new Date(value).toISOString();
+function toIso(value: unknown, field: string, optional = false): string {
+  if (value === undefined || value === null || value === "") {
+    if (optional) return "";
+    throw new Error(`${field} legado es obligatorio`);
+  }
+  if (typeof value === "string") {
+    if (!value.trim()) throw new Error(`${field} legado no puede estar vacío`);
+    return value;
+  }
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) throw new Error(`${field} legado no es una fecha válida`);
+    return value.toISOString();
+  }
+  if (typeof value === "number") {
+    const milliseconds = requiredNumber(value, `${field} timestamp`);
+    const date = new Date(milliseconds);
+    if (Number.isNaN(date.getTime())) throw new Error(`${field} legado no es una fecha válida`);
+    return date.toISOString();
+  }
   const timestamp = asRecord(value);
   if (typeof timestamp.toDate === "function") {
-    const date = timestamp.toDate();
-    if (date instanceof Date) return date.toISOString();
+    try {
+      const date = timestamp.toDate();
+      if (date instanceof Date && !Number.isNaN(date.getTime())) return date.toISOString();
+    } catch {
+      throw new Error(`${field} legado no es una fecha válida`);
+    }
   }
-  return "";
+  if (timestamp.seconds !== undefined) {
+    const seconds = requiredNumber(timestamp.seconds, `${field}.seconds`);
+    const nanoseconds = timestamp.nanoseconds === undefined ? 0 : requiredNumber(timestamp.nanoseconds, `${field}.nanoseconds`, { min: 0 });
+    const date = new Date(seconds * 1000 + nanoseconds / 1_000_000);
+    if (!Number.isNaN(date.getTime())) return date.toISOString();
+  }
+  throw new Error(`${field} legado no es una fecha válida`);
 }
 
 export function mapLegacyStatus(value: unknown): OrderStatus {
@@ -107,11 +144,19 @@ export function mapLegacyStatus(value: unknown): OrderStatus {
   return status;
 }
 
-function mapLegacyItem(value: unknown): OrderItem {
+function mapLegacyItem(value: unknown, index: number): OrderItem {
   const item = asRecord(value);
-  const quantity = asNumber(item.quantity);
-  const unitPrice = asNumber(item.unitPrice, asNumber(item.price));
-  const subtotal = asNumber(item.subtotal, unitPrice * quantity);
+  const quantity = requiredNumber(item.quantity, `items[${index}].quantity`, { integer: true, min: 1 });
+  const price = item.price === undefined ? undefined : requiredNumber(item.price, `items[${index}].price`, { min: 0 });
+  const unitPrice = item.unitPrice === undefined
+    ? price
+    : requiredNumber(item.unitPrice, `items[${index}].unitPrice`, { min: 0 });
+  if (unitPrice === undefined) throw new Error(`items[${index}].price legado es obligatorio`);
+  const derivedSubtotal = unitPrice * quantity;
+  if (!Number.isFinite(derivedSubtotal)) throw new Error(`items[${index}].subtotal legado no es finito`);
+  const subtotal = item.subtotal === undefined
+    ? derivedSubtotal
+    : requiredNumber(item.subtotal, `items[${index}].subtotal`, { min: 0 });
   const customization = asRecord(item.customization);
 
   return {
@@ -131,12 +176,13 @@ function mapLegacyItem(value: unknown): OrderItem {
 
 export function mapLegacyOrder(id: string, data: LegacyOrder): Order {
   const status = mapLegacyStatus(data.status);
-  const createdAt = toIso(data.createdAt);
-  const updatedAt = toIso(data.updatedAt) || createdAt;
+  const createdAt = toIso(data.createdAt, "createdAt");
+  const updatedAt = toIso(data.updatedAt, "updatedAt", true) || createdAt;
   const clienteUid = typeof data.clienteUid === "string" ? data.clienteUid : "";
-  const items = Array.isArray(data.items) ? data.items.map(mapLegacyItem) : [];
-  const total = asNumber(data.total);
-  const subtotal = asNumber(data.subtotal, total);
+  if (!Array.isArray(data.items)) throw new Error("items legado debe ser una lista");
+  const items = data.items.map(mapLegacyItem);
+  const total = requiredNumber(data.total, "total", { min: 0 });
+  const subtotal = data.subtotal === undefined ? total : requiredNumber(data.subtotal, "subtotal", { min: 0 });
   const sourceAudit = asRecord(data.audit);
 
   return {
@@ -163,6 +209,12 @@ function isExisting(snapshot: { exists?: boolean; data(): unknown }): boolean {
   return snapshot.exists === true || snapshot.data() !== undefined;
 }
 
+function isAlreadyExists(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: unknown }).code;
+  return code === 6 || code === "already-exists" || code === "ALREADY_EXISTS";
+}
+
 function getDb(options: MigrationOptions): MigrationDb {
   return options.db ?? getSeedAdminDb() as unknown as MigrationDb;
 }
@@ -177,13 +229,21 @@ export async function migrateLegacyOrders(options: MigrationOptions = {}): Promi
   for (const document of sourceDocuments.docs) {
     try {
       const target = getDb(options).collection(targetName).doc(document.id);
-      if (isExisting(await target.get())) {
+      const outcome = await getDb(options).runTransaction(async (transaction) => {
+        if (isExisting(await transaction.get(target))) return "skipped" as const;
+        transaction.create(target, mapLegacyOrder(document.id, asRecord(document.data()) as LegacyOrder));
+        return "migrated" as const;
+      });
+      if (outcome === "skipped") {
         summary.skipped += 1;
         continue;
       }
-      await target.set(mapLegacyOrder(document.id, asRecord(document.data()) as LegacyOrder));
       summary.migrated += 1;
     } catch (error) {
+      if (isAlreadyExists(error)) {
+        summary.skipped += 1;
+        continue;
+      }
       summary.failed += 1;
       summary.errors.push({ id: document.id, message: error instanceof Error ? error.message : "Error desconocido" });
     }
@@ -214,12 +274,8 @@ export async function verifyMigration(options: MigrationOptions = {}): Promise<M
     const targetData = target.get(id);
     if (!targetData) continue;
     const expected = mapLegacyOrder(id, sourceData);
-    if (targetData.id !== expected.id) mismatches.push({ id, field: "id", source: expected.id, target: targetData.id });
-    if (targetData.total !== expected.total) mismatches.push({ id, field: "total", source: expected.total, target: targetData.total });
-    const targetItemCount = Array.isArray(targetData.items) ? targetData.items.length : 0;
-    if (targetItemCount !== expected.items.length) mismatches.push({ id, field: "itemCount", source: expected.items.length, target: targetItemCount });
-    if (targetData.status !== expected.status) mismatches.push({ id, field: "status", source: expected.status, target: targetData.status });
-    if (targetData.createdAt !== expected.createdAt) mismatches.push({ id, field: "createdAt", source: expected.createdAt, target: targetData.createdAt });
+    const field = findDifference(expected, targetData);
+    if (field) mismatches.push({ id, field });
   }
 
   return {
@@ -230,6 +286,34 @@ export async function verifyMigration(options: MigrationOptions = {}): Promise<M
     extraIds,
     mismatches,
   };
+}
+
+function findDifference(expected: unknown, actual: unknown, path = ""): string | undefined {
+  if (Object.is(expected, actual)) return undefined;
+  if (expected instanceof Date || actual instanceof Date) {
+    return expected instanceof Date && actual instanceof Date && expected.getTime() === actual.getTime() ? undefined : path || "root";
+  }
+  if (Array.isArray(expected) || Array.isArray(actual)) {
+    if (!Array.isArray(expected) || !Array.isArray(actual)) return path || "root";
+    if (expected.length !== actual.length) return path ? `${path}.length` : "root.length";
+    for (let index = 0; index < expected.length; index += 1) {
+      const difference = findDifference(expected[index], actual[index], `${path}[${index}]`);
+      if (difference) return difference;
+    }
+    return undefined;
+  }
+  if (asRecord(expected) !== expected || asRecord(actual) !== actual) return path || "root";
+  const expectedRecord = expected as Record<string, unknown>;
+  const actualRecord = actual as Record<string, unknown>;
+  const keys = new Set([...Object.keys(expectedRecord), ...Object.keys(actualRecord)]);
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(expectedRecord, key) || !Object.prototype.hasOwnProperty.call(actualRecord, key)) {
+      return path ? `${path}.${key}` : key;
+    }
+    const difference = findDifference(expectedRecord[key], actualRecord[key], path ? `${path}.${key}` : key);
+    if (difference) return difference;
+  }
+  return undefined;
 }
 
 if (require.main === module) {

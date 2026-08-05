@@ -5,6 +5,7 @@ import {
   migrateLegacyOrders,
   verifyMigration,
   type LegacyOrder,
+  type MigrationDb,
 } from "../../scripts/migrate-orders";
 
 const legacyOrder: LegacyOrder = {
@@ -62,6 +63,7 @@ describe("migración de pedidos históricos", () => {
     const target = new Map<string, Record<string, unknown>>([
       ["legacy-2", mapLegacyOrder("legacy-2", source.get("legacy-2") as LegacyOrder)],
     ]);
+    const existingTarget = target.get("legacy-2");
     const db = fakeDb(source, target);
 
     const firstRun = await migrateLegacyOrders({ db });
@@ -71,22 +73,48 @@ describe("migración de pedidos históricos", () => {
     expect(secondRun).toMatchObject({ total: 2, migrated: 0, skipped: 2, failed: 0 });
     expect(source.size).toBe(2);
     expect(target.get("legacy-1")).toMatchObject({ total: 15000, legacy: true, historical: true });
+    expect(target.get("legacy-2")).toEqual(existingTarget);
   });
 
-  it("detecta diferencias de ids, totales, items y estados", async () => {
+  it("no sobrescribe un destino que aparece durante la creación atómica", async () => {
+    const source = new Map([["legacy-1", legacyOrder]]);
+    const concurrentOrder = { ...mapLegacyOrder("legacy-1", legacyOrder), customerName: "Otro proceso" };
+    const target = new Map<string, Record<string, unknown>>();
+
+    const summary = await migrateLegacyOrders({ db: fakeDb(source, target, { concurrentOrder }) });
+
+    expect(summary).toMatchObject({ migrated: 0, skipped: 1, failed: 0 });
+    expect(target.get("legacy-1")).toEqual(concurrentOrder);
+  });
+
+  it("detecta diferencias profundas aunque total y cantidad de items coincidan", async () => {
     const source = new Map([["legacy-1", legacyOrder]]);
     const target = new Map<string, Record<string, unknown>>([
-      ["legacy-1", { ...mapLegacyOrder("legacy-1", legacyOrder), total: 1 }],
+      ["legacy-1", {
+        ...mapLegacyOrder("legacy-1", legacyOrder),
+        items: [{ ...mapLegacyOrder("legacy-1", legacyOrder).items[0], name: "Mango" }],
+      }],
     ]);
 
     const result = await verifyMigration({ db: fakeDb(source, target) });
 
     expect(result.ok).toBe(false);
-    expect(result.mismatches).toEqual(expect.arrayContaining([expect.objectContaining({ id: "legacy-1", field: "total" })]));
+    expect(result.mismatches).toEqual(expect.arrayContaining([expect.objectContaining({ id: "legacy-1", field: "items[0].name" })]));
+  });
+
+  it("rechaza un total legado inválido y no crea un pedido corrupto", async () => {
+    const source = new Map([["legacy-1", { ...legacyOrder, total: "no-es-un-numero" }]]);
+    const target = new Map<string, Record<string, unknown>>();
+
+    const summary = await migrateLegacyOrders({ db: fakeDb(source, target) });
+
+    expect(summary).toMatchObject({ migrated: 0, skipped: 0, failed: 1 });
+    expect(summary.errors[0]?.message).toMatch(/total.*número/i);
+    expect(target).toHaveLength(0);
   });
 });
 
-function fakeDb(source: Map<string, LegacyOrder>, target: Map<string, Record<string, unknown>>) {
+function fakeDb(source: Map<string, LegacyOrder>, target: Map<string, Record<string, unknown>>, options: { concurrentOrder?: Record<string, unknown> } = {}) {
   const sourceCollection = {
     get: async () => ({ docs: [...source.entries()].map(([id, data]) => ({ id, data: () => data })) }),
     doc: () => { throw new Error("La fuente no admite escrituras"); },
@@ -100,5 +128,16 @@ function fakeDb(source: Map<string, LegacyOrder>, target: Map<string, Record<str
   };
   return {
     collection: (name: string) => name === "orders" ? sourceCollection : targetCollection,
-  };
+    runTransaction: async (callback: (transaction: { get: (reference: { get: () => Promise<unknown> }) => Promise<unknown>; create: (ref: { get: () => Promise<unknown> }, data: Record<string, unknown>) => unknown }) => Promise<unknown>) => callback({
+      get: async (reference: { get: () => Promise<unknown> }) => reference.get(),
+      create: (reference: { get: () => Promise<unknown> }, data: Record<string, unknown>) => {
+        void reference;
+        if (options.concurrentOrder) {
+          target.set("legacy-1", options.concurrentOrder);
+          throw Object.assign(new Error("Already exists"), { code: 6 });
+        }
+        target.set("legacy-1", data);
+      },
+    }),
+  } as unknown as MigrationDb;
 }
