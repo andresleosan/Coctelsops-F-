@@ -206,10 +206,11 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
   const db = getAdminDb();
   const state = createLocalE2EState();
   const now = new Date().toISOString();
-  const createdResourceKeys = new Set<string>();
+  const createdAuthUserIds: string[] = [];
+  const createdResources: LocalE2EResourceRef[] = [];
   let stateFileCreated = false;
-  const markCreated = (collection: string, id: string): void => {
-    createdResourceKeys.add(`${collection}/${id}`);
+  const markCreated = (resource: LocalE2EResourceRef): void => {
+    createdResources.push(resource);
   };
 
   try {
@@ -221,6 +222,7 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
         displayName: ROLE_SEEDS[role].name,
         uid: state[role].uid,
       });
+      createdAuthUserIds.push(user.uid);
       if (user.uid !== state[role].uid) throw new Error("Firebase Auth no devolvio el UID E2E esperado.");
     }
 
@@ -249,7 +251,7 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
         createdAt: now,
         lastLoginAt: now,
       });
-      markCreated("users", state[role].uid);
+      markCreated({ collection: "users", id: state[role].uid });
     }
 
     for (const [id, seed] of Object.entries(ROLE_SEEDS)) {
@@ -263,7 +265,7 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
         createdAt: now,
         updatedAt: now,
       });
-      markCreated("roles", id);
+      markCreated({ collection: "roles", id });
     }
 
     for (const product of PRODUCTS) {
@@ -274,7 +276,7 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
         e2eManaged: true,
         updatedAt: now,
       });
-      markCreated("productos", id);
+      markCreated({ collection: "productos", id });
     }
 
     for (const [id, data] of Object.entries(CATEGORY_SEEDS)) {
@@ -284,7 +286,7 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
         e2eManaged: true,
         updatedAt: now,
       });
-      markCreated("categorias", id);
+      markCreated({ collection: "categorias", id });
     }
 
     await db.collection("configuracion").doc("principal").create({
@@ -293,15 +295,15 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
       e2eManaged: true,
       updatedAt: now,
     });
-    markCreated("configuracion", "principal");
+    markCreated({ collection: "configuracion", id: "principal" });
 
     writeLocalE2EState(state);
     stateFileCreated = true;
     return state;
   } catch (error) {
     try {
-      const { deleteOwnedLocalE2EData } = await import("./e2e-local-cleanup");
-      await deleteOwnedLocalE2EData(auth, db, state, { resourceKeys: createdResourceKeys });
+      const { rollbackLocalE2EData } = await import("./e2e-local-cleanup");
+      await rollbackLocalE2EData(auth, db, createdAuthUserIds, createdResources);
       if (stateFileCreated) removeLocalE2EStateFile();
     } catch (rollbackError) {
       throw new Error(`Fallo de setup E2E y rollback incompleto: ${rollbackError instanceof Error ? rollbackError.message : "Error desconocido"}`);

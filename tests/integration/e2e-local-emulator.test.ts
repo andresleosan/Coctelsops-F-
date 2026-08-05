@@ -1,12 +1,12 @@
 import { existsSync } from "node:fs";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   cleanupLocalE2EState,
   getLocalE2EResourcePlan,
 } from "../../scripts/e2e-local-cleanup";
-import { prepareLocalE2EState } from "../../scripts/e2e-local-state";
+import { createLocalE2EPassword, prepareLocalE2EState } from "../../scripts/e2e-local-state";
 import { loadLocalE2EState } from "../e2e/local-state";
 
 const emulatorReady = process.env.FIREBASE_EMULATORS === "true"
@@ -71,6 +71,29 @@ describeWhenReady("estado E2E contra Firebase Emulator", () => {
     }
   }, 30_000);
 
+  it("revierte los usuarios Auth si falla la asignacion inicial de claims", async () => {
+    const { getAdminAuth } = await import("../../src/lib/firebase-admin");
+    const auth = getAdminAuth();
+    const unrelatedUser = await auth.createUser({
+      email: "unrelated@local.test",
+      password: createLocalE2EPassword(),
+    });
+    const claimFailure = vi.spyOn(auth, "setCustomUserClaims").mockImplementationOnce(async () => {
+      throw new Error("fallo de claims provocado");
+    });
+
+    try {
+      await expect(prepareLocalE2EState()).rejects.toThrow("fallo de claims provocado");
+      const users = (await auth.listUsers()).users;
+      expect(users.map((user) => user.uid)).toContain(unrelatedUser.uid);
+      expect(users.filter((user) => user.email?.endsWith("@local.test") && user.uid !== unrelatedUser.uid)).toHaveLength(0);
+    } finally {
+      claimFailure.mockRestore();
+      const localUsers = (await auth.listUsers()).users.filter((user) => user.email?.endsWith("@local.test"));
+      await Promise.all(localUsers.map((user) => auth.deleteUser(user.uid)));
+    }
+  }, 30_000);
+
   it("revierte Auth y perfiles si falla la creacion de un recurso propio", async () => {
     const { getAdminAuth, getAdminDb } = await import("../../src/lib/firebase-admin");
     const auth = getAdminAuth();
@@ -81,6 +104,7 @@ describeWhenReady("estado E2E contra Firebase Emulator", () => {
     try {
       await expect(prepareLocalE2EState()).rejects.toThrow();
       expect((await auth.listUsers()).users).toHaveLength(0);
+      expect((await db.collection("users").where("e2eManaged", "==", true).get()).docs).toHaveLength(0);
       expect((await blocker.get()).data()).toEqual({ origen: "ajeno" });
       expect(existsSync(".tmp/e2e/local-state.json")).toBe(false);
     } finally {
