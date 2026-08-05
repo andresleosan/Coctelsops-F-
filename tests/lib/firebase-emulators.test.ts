@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   assertLoopbackEmulatorHosts,
   shouldUseFirebaseEmulators,
@@ -8,6 +8,25 @@ const BASE_LOOPBACK = {
   FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080",
   FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
 } as const;
+
+const adminMocks = vi.hoisted(() => ({
+  cert: vi.fn(() => ({ credential: true })),
+  getApps: vi.fn(() => []),
+  initializeApp: vi.fn((options: unknown) => options),
+  requireEnv: vi.fn((name: string) => {
+    throw new Error(`credential lookup: ${name}`);
+  }),
+}));
+
+vi.mock("server-only", () => ({}));
+vi.mock("firebase-admin/app", () => ({
+  cert: adminMocks.cert,
+  getApps: adminMocks.getApps,
+  initializeApp: adminMocks.initializeApp,
+}));
+vi.mock("@/lib/server-env", () => ({
+  requireEnv: adminMocks.requireEnv,
+}));
 
 describe("shouldUseFirebaseEmulators", () => {
   afterEach(() => {
@@ -127,5 +146,28 @@ describe("assertLoopbackEmulatorHosts", () => {
         FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080",
       }),
     ).toThrow("loopback");
+  });
+});
+
+describe("getAdminApp en modo emulator", () => {
+  afterEach(() => {
+    delete process.env.FIREBASE_EMULATORS;
+    delete process.env.FIRESTORE_EMULATOR_HOST;
+    delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
+    vi.clearAllMocks();
+  });
+
+  it("falla cerrado con host remoto sin consultar credenciales", async () => {
+    process.env.FIREBASE_EMULATORS = "true";
+    process.env.FIRESTORE_EMULATOR_HOST = "firestore.example.com:8080";
+    process.env.FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099";
+
+    vi.resetModules();
+    const { getAdminApp } = await import("@/lib/firebase-admin");
+
+    expect(() => getAdminApp()).toThrow("loopback");
+    expect(adminMocks.requireEnv).not.toHaveBeenCalled();
+    expect(adminMocks.cert).not.toHaveBeenCalled();
+    expect(adminMocks.initializeApp).not.toHaveBeenCalled();
   });
 });

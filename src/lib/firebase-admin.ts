@@ -14,16 +14,13 @@ function isServerEmulatorMode(environment: Record<string, string | undefined> = 
     return false;
   }
 
-  try {
-    assertLoopbackEmulatorHosts(environment);
-  } catch {
-    return false;
-  }
-
+  assertLoopbackEmulatorHosts(environment);
   return true;
 }
 
 export function getAdminApp(): App {
+  const useEmulators = isServerEmulatorMode();
+
   if (adminApp) {
     return adminApp;
   }
@@ -34,7 +31,7 @@ export function getAdminApp(): App {
     return adminApp;
   }
 
-  if (isServerEmulatorMode()) {
+  if (useEmulators) {
     adminApp = initializeApp({
       projectId: requireEnv("FIREBASE_PROJECT_ID"),
     });
