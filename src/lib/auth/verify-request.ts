@@ -6,9 +6,9 @@ import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import type { TokenClaims, UserProfile, VerifiedUser } from "@/types/auth";
 
 export class AuthorizationError extends Error {
-  readonly status: 401 | 403;
+  readonly status: 401 | 403 | 409;
 
-  constructor(status: 401 | 403, message: string) {
+  constructor(status: 401 | 403 | 409, message: string) {
     super(message);
     this.name = "AuthorizationError";
     this.status = status;

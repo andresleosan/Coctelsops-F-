@@ -86,6 +86,11 @@ export async function updateProduct(id: string, input: ProductInput, caller: Cat
   await productCollection().doc(id).update({ ...validated, updatedAt: new Date().toISOString() });
 }
 
+export async function deleteProduct(id: string, caller: CatalogCaller): Promise<void> {
+  requireCatalogPermission(caller, "productos.write");
+  await productCollection().doc(id).delete();
+}
+
 export async function seedProduct(input: ProductInput, id: string): Promise<void> {
   const validated = productInputSchema.parse(input);
   await productCollection().doc(id).set({ ...validated, updatedAt: new Date().toISOString() }, { merge: true });

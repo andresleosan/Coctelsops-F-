@@ -25,7 +25,7 @@ export type Product = {
 
 export type ProductInput = Omit<Product, "id">;
 
-export type CatalogPermission = "productos.read" | "productos.write";
+export type CatalogPermission = "productos.read" | "productos.write" | "categorias.read" | "categorias.write";
 export type CatalogCaller = VerifiedUser;
 
 export type Category = {

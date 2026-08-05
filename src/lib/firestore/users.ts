@@ -63,6 +63,9 @@ export async function listUsers(): Promise<UserProfile[]> {
 }
 
 export async function updateUser(uid: string, input: { active?: boolean; roleIds?: string[] }, actorUid = "system"): Promise<void> {
+  if (uid === actorUid && input.active === false) {
+    throw new AuthorizationError(409, "No puedes desactivar tu propia cuenta administrativa");
+  }
   const updates: { active?: boolean; roleIds?: string[] } = {};
   if (input.active !== undefined) updates.active = input.active;
   if (input.roleIds !== undefined) updates.roleIds = input.roleIds;

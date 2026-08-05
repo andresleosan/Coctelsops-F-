@@ -3,6 +3,7 @@ import "server-only";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { createAuditEntry, writeAuditInTransaction } from "@/lib/firestore/audit";
 import type { Permission, Role, RoleInput } from "@/types/auth";
+import { AuthorizationError } from "@/lib/auth/verify-request";
 
 function roleId(name: string): string {
   return name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -18,6 +19,15 @@ function toRole(id: string, data: Record<string, unknown>): Role {
     createdAt: (data.createdAt as Role["createdAt"]) ?? new Date().toISOString(),
     updatedAt: (data.updatedAt as Role["updatedAt"]) ?? new Date().toISOString(),
   };
+}
+
+async function assertAdministratorReplacement(id: string, next?: RoleInput): Promise<void> {
+  const role = await getRole(id);
+  if (!role || (!role.id.toLocaleLowerCase().includes("admin") && !role.name.toLocaleLowerCase().includes("admin"))) return;
+  const removesAccess = !next || !next.active || !next.permissions.includes("roles.write");
+  if (!removesAccess) return;
+  const snapshot = await getAdminDb().collection("users").where("roleIds", "array-contains", id).where("active", "==", true).get();
+  if (snapshot.size <= 1) throw new AuthorizationError(409, "Debes conservar un administrador activo o crear un reemplazo primero");
 }
 
 export async function listRoles(): Promise<Role[]> {
@@ -46,6 +56,7 @@ export async function createRole(input: RoleInput, actorUid = "system"): Promise
 }
 
 export async function updateRole(id: string, input: RoleInput, actorUid = "system"): Promise<void> {
+  await assertAdministratorReplacement(id, input);
   const db = getAdminDb();
   const ref = db.collection("roles").doc(id);
   await db.runTransaction(async (transaction) => {
@@ -57,6 +68,7 @@ export async function updateRole(id: string, input: RoleInput, actorUid = "syste
 }
 
 export async function deleteRole(id: string, actorUid = "system"): Promise<void> {
+  await assertAdministratorReplacement(id);
   const db = getAdminDb();
   const ref = db.collection("roles").doc(id);
   await db.runTransaction(async (transaction) => {

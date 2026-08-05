@@ -1,220 +1,76 @@
+"use client";
 
-'use client';
+import Link from "next/link";
+import { RefreshCw, ArrowRight } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Clock, Users, DollarSign, Package, RefreshCw, Eye, CheckCircle2 } from 'lucide-react';
-import { AdminGuard } from '@/components/admin/AdminGuard';
-import { useAuth } from '@/hooks/use-auth';
-import { getOrderAction } from '@/lib/orders/status-actions';
-import type { OrderStatus } from '@/types/orders';
-import { useEffect, useState } from 'react';
+import { AdminGuard } from "@/components/admin/AdminGuard";
+import { StatsCards, type AdminStats } from "@/components/admin/StatsCards";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/hooks/use-auth";
+import type { Order } from "@/types/orders";
 
-type OrderItem = {
-  quantity?: number;
-  name?: string;
-  unitPrice?: number;
-  price?: number;
-  subtotal?: number;
-};
+type StatsResponse = { stats: AdminStats };
+type OrdersResponse = { orders: Order[] };
 
-type Order = {
-  id: string;
-  total?: number;
-  status: OrderStatus;
-  phone?: string;
-  customerName?: string;
-  items?: OrderItem[];
-  address?: string;
-  notes?: string;
-};
+function statusLabel(status: Order["status"]): string {
+  return status.replace("_", " ");
+}
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionError, setActionError] = useState('');
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    let active = true;
-    setLoading(true);
-    void user.getIdToken().then(async (token) => {
-      const response = await fetch('/api/pedidos', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!active) return;
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({})) as { error?: string };
-        setActionError(body.error || 'No se pudieron cargar los pedidos.');
-        setOrders([]);
-      } else {
-        const body = await response.json() as { orders?: Order[] };
-        setOrders(body.orders ?? []);
-      }
-      setLoading(false);
-    }).catch(() => {
-      if (active) {
-        setActionError('No se pudo conectar con la central de pedidos.');
-        setLoading(false);
-      }
-    });
-
-    return () => { active = false; };
-  }, [user]);
-
-  const stats = {
-    totalSales: orders?.reduce((acc, curr) => acc + (curr.total || 0), 0) || 0,
-    pending: orders?.filter((o) => o.status === 'pendiente').length || 0,
-    newClients: new Set(orders?.map((o) => o.phone)).size || 0,
-    totalOrders: orders?.length || 0
-  };
-
-  const updateStatus = async (id: string, newStatus: string) => {
+  const loadDashboard = useCallback(async () => {
     if (!user) return;
-    setActionError('');
+    setLoading(true);
+    setError("");
     try {
       const token = await user.getIdToken();
-      const response = await fetch(`/api/pedidos/${encodeURIComponent(id)}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({})) as { error?: string };
-        setActionError(body.error || 'No se pudo actualizar el pedido.');
-        return;
+      const headers = { Authorization: `Bearer ${token}` };
+      const [statsResponse, ordersResponse] = await Promise.all([fetch("/api/admin/stats", { headers }), fetch("/api/pedidos", { headers })]);
+      if (!statsResponse.ok || !ordersResponse.ok) {
+        const body = await (statsResponse.ok ? ordersResponse : statsResponse).json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? "No se pudieron cargar los datos operativos.");
       }
-      window.location.reload();
-    } catch {
-      setActionError('No se pudo conectar con la central de pedidos.');
+      const statsBody = await statsResponse.json() as StatsResponse;
+      const ordersBody = await ordersResponse.json() as OrdersResponse;
+      setStats(statsBody.stats);
+      setOrders(ordersBody.orders.slice(0, 6));
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "No se pudieron cargar los datos operativos.");
+      setStats(null);
+      setOrders([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
 
   return (
     <AdminGuard>
-      <div className="container mx-auto px-4 py-8 md:py-12 bg-background min-h-screen">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
-        <div className="space-y-1">
-          <h1 className="text-4xl md:text-5xl font-headline font-bold text-primary italic neon-text-magenta uppercase tracking-tighter">PANEL OPS</h1>
-          <p className="text-muted-foreground font-black uppercase tracking-[0.3em] text-[10px]">Gestión en tiempo real</p>
+      <div className="space-y-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div><p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-700">Centro de control</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Resumen operativo</h1><p className="mt-2 text-sm text-slate-500">Una vista rápida de la actividad de tu tienda.</p></div>
+          <Button variant="outline" onClick={() => void loadDashboard()} disabled={loading} className="w-full border-slate-300 bg-white sm:w-auto"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Actualizar</Button>
         </div>
-        <Button size="lg" className="w-full md:w-auto bg-primary text-white rounded-full font-black text-xs h-14 px-8 shadow-lg shadow-primary/20" onClick={() => window.location.reload()}>
-          <RefreshCw className="w-4 h-4 mr-2" /> ACTUALIZAR DATOS
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-12">
-        {[
-          { label: 'Ventas', value: `$${stats.totalSales.toLocaleString()}`, icon: DollarSign, color: 'text-green-400', bg: 'bg-green-400/10' },
-          { label: 'Pendientes', value: stats.pending.toString(), icon: Clock, color: 'text-primary', bg: 'bg-primary/10' },
-          { label: 'Clientes', value: stats.newClients.toString(), icon: Users, color: 'text-accent', bg: 'bg-accent/10' },
-          { label: 'Total Hoy', value: stats.totalOrders.toString(), icon: Package, color: 'text-purple-400', bg: 'bg-purple-400/10' }
-        ].map((stat, i) => (
-          <Card key={i} className="border-none shadow-2xl bg-card/60 backdrop-blur-xl border border-white/5 rounded-3xl overflow-hidden">
-            <CardContent className="p-5 md:p-8 flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-4">
-              <div className={`p-4 rounded-2xl ${stat.bg} ${stat.color}`}>
-                <stat.icon className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{stat.label}</p>
-                <h3 className="text-xl md:text-3xl font-bold text-white tracking-tight">{stat.value}</h3>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="space-y-6">
-        <div className="flex items-center justify-between px-2">
-          <h2 className="text-xl md:text-2xl font-headline font-bold uppercase tracking-tight text-white/90">ÚLTIMOS PEDIDOS</h2>
-          <Badge variant="outline" className="border-primary text-primary font-bold text-[10px] animate-pulse px-3 py-1">EN VIVO</Badge>
-        </div>
-        {actionError && <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm font-bold text-destructive">{actionError}</p>}
-
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-24 space-y-4">
-            <RefreshCw className="w-10 h-10 text-primary animate-spin" />
-            <p className="text-muted-foreground font-medium italic">Sincronizando con la nube...</p>
-          </div>
-        ) : orders?.length === 0 ? (
-          <div className="text-center py-24 text-muted-foreground italic text-sm bg-card/20 rounded-3xl border border-dashed border-white/10">
-            No hay pedidos registrados en este momento.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {orders.map((order) => (
-              <Card key={order.id} className="border-none bg-card/40 border border-white/5 shadow-2xl hover:border-primary/40 transition-all rounded-[2rem] overflow-hidden group">
-                <CardContent className="p-6 md:p-8 space-y-6">
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <h4 className="font-bold text-white text-lg leading-tight">{order.customerName}</h4>
-                      <p className="text-sm text-primary font-bold tracking-wider">{order.phone}</p>
-                    </div>
-                    <Badge 
-                      className={`text-[10px] px-3 py-1 font-bold rounded-full ${
-                        order.status === 'pendiente' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                        order.status === 'preparando' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                        order.status === 'en_camino' ? 'bg-accent/10 text-accent border-accent/20' :
-                        'bg-green-500/10 text-green-500 border-green-500/20'
-                      }`}
-                    >
-                      {order.status.replace('_', ' ').toUpperCase()}
-                    </Badge>
-                  </div>
-
-                  <div className="space-y-3 py-4 border-y border-white/5">
-                    {order.items?.map((it, idx: number) => (
-                      <div key={idx} className="flex justify-between text-sm text-white/80">
-                        <span className="font-light">{it.quantity}x {it.name}</span>
-                        <span className="font-bold text-white">${(it.subtotal ?? ((it.unitPrice ?? it.price ?? 0) * (it.quantity ?? 0))).toLocaleString()}</span>
-                      </div>
-                    ))}
-                    <div className="pt-3 flex justify-between items-end border-t border-white/5">
-                      <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Total OPS</span>
-                      <span className="text-2xl font-black text-primary">${order.total?.toLocaleString()}</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Entrega</p>
-                    <p className="text-sm text-white/90 font-medium leading-relaxed">{order.address}</p>
-                    {order.notes && (
-                      <div className="bg-black/40 p-3 rounded-xl border border-white/5">
-                        <p className="text-[11px] italic text-muted-foreground">Nota: {order.notes}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex gap-3 pt-2">
-                    {(() => {
-                      const action = getOrderAction(order.status);
-                      if (!action) return null;
-                      return (
-                        <Button
-                          className="flex-1 bg-primary text-white h-12 text-xs font-black tracking-widest rounded-full shadow-lg shadow-primary/20"
-                          onClick={() => updateStatus(order.id, action.nextStatus)}
-                        >
-                          {action.nextStatus === 'entregado' ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <Package className="w-4 h-4 mr-2" />}
-                          {action.label}
-                        </Button>
-                      );
-                    })()}
-                    <Button variant="outline" size="icon" className="h-12 w-12 rounded-full border-white/10 hover:bg-white/5">
-                      <Eye className="w-5 h-5" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+        {error && <div role="alert" className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between"><span>{error}</span><Button variant="outline" size="sm" className="border-red-300 bg-white" onClick={() => void loadDashboard()}>Reintentar</Button></div>}
+        <StatsCards stats={stats} loading={loading} />
+        <Card className="border-slate-200 bg-white shadow-sm">
+          <CardHeader className="flex-row items-center justify-between space-y-0"><div><CardTitle className="text-lg text-slate-900">Pedidos recientes</CardTitle><p className="mt-1 text-sm text-slate-500">Sigue el flujo de preparación y entrega.</p></div><Link href="/admin/pedidos" className="flex items-center gap-1 text-sm font-semibold text-cyan-700 hover:text-cyan-900">Ver todos <ArrowRight className="h-4 w-4" /></Link></CardHeader>
+          <CardContent>
+            {loading ? <div className="space-y-3"><div className="h-12 animate-pulse rounded-lg bg-slate-100" /><div className="h-12 animate-pulse rounded-lg bg-slate-100" /></div> : orders.length === 0 ? <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">Aún no hay pedidos para mostrar.</div> : <div className="divide-y divide-slate-100">{orders.map((order) => <Link key={order.id} href={`/admin/pedidos/${order.id}`} className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold text-slate-800">{order.customerName}</p><p className="text-xs text-slate-500">#{order.id.slice(0, 8)} · {order.items.length} productos</p></div><div className="flex items-center justify-between gap-4 sm:justify-end"><Badge variant="outline" className="capitalize">{statusLabel(order.status)}</Badge><span className="font-semibold text-slate-800">${order.total.toLocaleString("es-CO")}</span></div></Link>)}</div>}
+          </CardContent>
+        </Card>
+        {stats && <p className="text-right text-sm text-slate-500">Ingresos registrados: <span className="font-semibold text-slate-800">${stats.revenue.toLocaleString("es-CO")}</span></p>}
       </div>
     </AdminGuard>
   );
