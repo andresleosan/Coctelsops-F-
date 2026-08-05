@@ -4,12 +4,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export type AdminStats = {
-  orders: number;
-  pending: number;
-  activeProducts: number;
-  customers: number;
-  revenue: number;
+  orders?: number;
+  pending?: number;
+  activeProducts?: number;
+  customers?: number;
+  revenue?: number;
 };
+
+export type AdminStatKey = "orders" | "pending" | "activeProducts" | "customers";
 
 const definitions = [
   { key: "orders", label: "Pedidos recientes", icon: ClipboardList, tone: "text-cyan-700 bg-cyan-100" },
@@ -18,10 +20,10 @@ const definitions = [
   { key: "customers", label: "Clientes", icon: Users, tone: "text-emerald-700 bg-emerald-100" },
 ] as const;
 
-export function StatsCards({ stats, loading }: { stats: AdminStats | null; loading: boolean }) {
+export function StatsCards({ stats, loading, visibleKeys }: { stats: AdminStats | null; loading: boolean; visibleKeys: AdminStatKey[] }) {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {definitions.map(({ key, label, icon: Icon, tone }) => (
+      {definitions.filter(({ key }) => visibleKeys.includes(key)).map(({ key, label, icon: Icon, tone }) => (
         <Card key={key} className="border-slate-200 bg-white shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-start justify-between gap-2">

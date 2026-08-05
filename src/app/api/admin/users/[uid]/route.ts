@@ -13,6 +13,7 @@ type Context = { params: Promise<{ uid: string }> };
 
 function errorResponse(error: unknown): Response {
   if (error instanceof z.ZodError) return Response.json({ error: "Los datos del usuario no son válidos" }, { status: 422 });
+  if (error instanceof Error && error.message === "Los roles seleccionados no existen") return Response.json({ error: error.message }, { status: 422 });
   return toAuthorizationResponse(error);
 }
 

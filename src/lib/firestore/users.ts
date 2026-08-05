@@ -70,6 +70,10 @@ export async function updateUser(uid: string, input: { active?: boolean; roleIds
   if (input.active !== undefined) updates.active = input.active;
   if (input.roleIds !== undefined) updates.roleIds = input.roleIds;
   const db = getAdminDb();
+  if (input.roleIds !== undefined) {
+    const roleSnapshots = await Promise.all(input.roleIds.map((roleId) => db.collection("roles").doc(roleId).get()));
+    if (roleSnapshots.some((snapshot) => !snapshot.exists)) throw new Error("Los roles seleccionados no existen");
+  }
   const ref = db.collection("users").doc(uid);
   await db.runTransaction(async (transaction) => {
     const existing = await transaction.get(ref);

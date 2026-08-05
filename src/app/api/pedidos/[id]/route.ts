@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { requirePermission } from "@/lib/auth/permissions";
 import { toAuthorizationResponse, verifyRequest } from "@/lib/auth/verify-request";
-import { getCustomerOrder, OrderNotFoundError, updateOrderStatus } from "@/lib/firestore/orders";
+import { getAdminOrder, getCustomerOrder, OrderNotFoundError, updateOrderStatus } from "@/lib/firestore/orders";
 import { OrderValidationError, statusUpdateSchema } from "@/lib/validation/orders";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -18,8 +18,12 @@ function toOrderResponse(error: unknown): Response {
 
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
   try {
-    const user = await verifyRequest(request as never);
     const { id } = await context.params;
+    if (new URL(request.url).searchParams.get("view") === "admin") {
+      const user = await requirePermission(request as never, "pedidos.read");
+      return Response.json({ order: await getAdminOrder(user, id) });
+    }
+    const user = await verifyRequest(request as never);
     return Response.json({ order: await getCustomerOrder(user, id) });
   } catch (error) {
     return toOrderResponse(error);

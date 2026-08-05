@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/admin/AppSidebar";
 import { Breadcrumbs } from "@/components/admin/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import type { Permission } from "@/types/auth";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -16,8 +17,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (pathname === "/admin/login") return children;
 
+  const requiredPermission: Permission | undefined = pathname.startsWith("/admin/pedidos") ? "pedidos.read" : undefined;
+
   return (
-    <AdminGuard>
+    <AdminGuard permission={requiredPermission}>
       <div className="min-h-[calc(100svh-1rem)] bg-slate-100 text-slate-900">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetContent side="left" className="w-[18rem] border-slate-700 bg-[#111827] p-0 [&>button]:hidden">

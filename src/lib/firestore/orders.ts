@@ -124,6 +124,14 @@ export async function getCustomerOrder(user: VerifiedUser, id: string): Promise<
   return toCustomerOrder(order);
 }
 
+export async function getAdminOrder(user: VerifiedUser, id: string): Promise<Order> {
+  requireOrderPermission(user, "pedidos.read");
+  if (!id.trim()) throw new OrderNotFoundError();
+  const snapshot = await ordersCollection().doc(id).get();
+  if (!snapshot.exists) throw new OrderNotFoundError();
+  return toOrder(snapshot.id, (snapshot.data() ?? {}) as Record<string, unknown>);
+}
+
 export async function updateOrderStatus(user: VerifiedUser, id: string, input: StatusUpdate): Promise<Order> {
   requireOrderPermission(user, "pedidos.update");
   const validated = statusUpdateSchema.parse(input);
