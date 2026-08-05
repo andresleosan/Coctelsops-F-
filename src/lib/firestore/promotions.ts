@@ -3,7 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import { getAdminDb } from "@/lib/firebase-admin";
-import { createAuditEntry } from "@/lib/firestore/audit";
+import { writeAuditInTransaction } from "@/lib/firestore/audit";
 import type { Promotion, PromotionContext, PromotionInput, PromotionResult } from "@/types/operations";
 
 export const promotionInputSchema = z.object({
@@ -17,17 +17,15 @@ export const promotionInputSchema = z.object({
   productIds: z.array(z.string().trim().min(1)).max(100).optional(),
   categoryIds: z.array(z.string().trim().min(1)).max(30).optional(),
   usageLimit: z.number().int().positive().optional(),
-  usageCount: z.number().int().nonnegative().optional(),
   maxDiscount: z.number().positive().optional(),
 }).superRefine((value, context) => {
   if (value.endsAt <= value.startsAt) context.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "La fecha final debe ser posterior a la inicial" });
   if (value.discountType === "percent" && value.discountValue > 100) context.addIssue({ code: z.ZodIssueCode.custom, path: ["discountValue"], message: "El porcentaje no puede superar 100" });
-  if (value.usageLimit !== undefined && (value.usageCount ?? 0) > value.usageLimit) context.addIssue({ code: z.ZodIssueCode.custom, path: ["usageCount"], message: "El uso actual supera el límite" });
 });
 
-function toPromotion(id: string, data: Record<string, unknown>): Promotion {
-  const validated = promotionInputSchema.parse({ ...data, usageCount: data.usageCount ?? 0 });
-  return { id, ...validated, usageCount: validated.usageCount ?? 0 };
+export function toPromotion(id: string, data: Record<string, unknown>): Promotion {
+  const validated = promotionInputSchema.parse(data);
+  return { id, ...validated, usageCount: typeof data.usageCount === "number" && data.usageCount >= 0 ? data.usageCount : 0 };
 }
 
 export function calculatePromotion(input: PromotionContext): PromotionResult {
@@ -61,19 +59,34 @@ export async function listPromotions(): Promise<Promotion[]> {
 export async function createPromotion(input: PromotionInput, actorUid: string): Promise<string> {
   const validated = promotionInputSchema.parse(input);
   const reference = getAdminDb().collection("promociones").doc();
-  const data = { ...validated, usageCount: validated.usageCount ?? 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-  await reference.set(data);
-  await createAuditEntry({ actorUid, action: "create", module: "promociones", entityId: reference.id, changes: data });
+  const data = { ...validated, usageCount: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  const db = getAdminDb();
+  await db.runTransaction(async (transaction) => {
+    transaction.create(reference, data);
+    writeAuditInTransaction(transaction, { actorUid, action: "create", module: "promociones", entityId: reference.id, changes: data });
+  });
   return reference.id;
 }
 
 export async function updatePromotion(id: string, input: PromotionInput, actorUid: string): Promise<void> {
   const validated = promotionInputSchema.parse(input);
-  await getAdminDb().collection("promociones").doc(id).update({ ...validated, usageCount: validated.usageCount ?? 0, updatedAt: new Date().toISOString() });
-  await createAuditEntry({ actorUid, action: "update", module: "promociones", entityId: id, changes: validated });
+  const db = getAdminDb();
+  const reference = db.collection("promociones").doc(id);
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(reference);
+    if (!snapshot.exists) throw new Error("Promoción no encontrada");
+    const current = toPromotion(id, snapshot.data() as Record<string, unknown>);
+    const data = { ...validated, usageCount: current.usageCount, updatedAt: new Date().toISOString() };
+    transaction.update(reference, data);
+    writeAuditInTransaction(transaction, { actorUid, action: "update", module: "promociones", entityId: id, changes: { ...validated, usageCount: current.usageCount } });
+  });
 }
 
 export async function deletePromotion(id: string, actorUid: string): Promise<void> {
-  await getAdminDb().collection("promociones").doc(id).delete();
-  await createAuditEntry({ actorUid, action: "delete", module: "promociones", entityId: id });
+  const db = getAdminDb();
+  const reference = db.collection("promociones").doc(id);
+  await db.runTransaction(async (transaction) => {
+    transaction.delete(reference);
+    writeAuditInTransaction(transaction, { actorUid, action: "delete", module: "promociones", entityId: id });
+  });
 }

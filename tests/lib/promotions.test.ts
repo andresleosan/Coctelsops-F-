@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { calculatePromotion } from "@/lib/firestore/promotions";
+import { calculatePromotion, promotionInputSchema } from "@/lib/firestore/promotions";
 import type { Promotion, PromotionContext } from "@/types/operations";
 
 const promotion: Promotion = {
@@ -45,5 +45,10 @@ describe("calculadora de promociones", () => {
   it("aplica descuentos fijos sin superar el subtotal elegible", () => {
     const fixed: Promotion = { ...promotion, discountType: "fixed", discountValue: 50_000, productIds: undefined, maxDiscount: undefined };
     expect(calculatePromotion({ ...context, promotion: fixed, subtotal: 30_000, items: [{ productId: "mango", category: "granizado", subtotal: 30_000 }] })).toMatchObject({ applied: true, discount: 30_000, total: 0 });
+  });
+
+  it("no permite que el input de escritura controle el contador de usos", () => {
+    const input = promotionInputSchema.parse({ ...promotion, usageCount: 99 });
+    expect(input).not.toHaveProperty("usageCount");
   });
 });

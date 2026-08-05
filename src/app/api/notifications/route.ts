@@ -15,7 +15,7 @@ export async function GET(request: Request): Promise<Response> {
 
 export async function PATCH(request: Request): Promise<Response> {
   try {
-    const user = await verifyRequest(request as never);
+    const user = await requirePermission(request as never, "notificaciones.read");
     const input = z.object({ id: z.string().trim().min(1) }).parse(await request.json());
     await markNotificationRead(input.id, user.uid, user.token.admin === true && user.profile.accountType === "admin");
     return Response.json({ ok: true });

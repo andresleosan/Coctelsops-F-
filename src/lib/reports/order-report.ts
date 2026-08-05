@@ -1,7 +1,17 @@
 import "server-only";
 
+import { z } from "zod";
+
 import { getAdminDb } from "@/lib/firebase-admin";
 import type { OrderReport, OrderReportFilter, ReportOrder } from "@/types/operations";
+
+export const orderReportFilterSchema = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  status: z.enum(["pendiente", "confirmado", "preparando", "en_camino", "entregado", "cancelado"]).optional(),
+}).superRefine((filter, context) => {
+  if (filter.from && filter.to && filter.from > filter.to) context.addIssue({ code: z.ZodIssueCode.custom, path: ["from"], message: "La fecha inicial no puede superar la fecha final" });
+});
 
 export function aggregateOrders(orders: ReportOrder[]): OrderReport {
   const revenueByStatus: Record<string, number> = {};
@@ -25,7 +35,7 @@ export function aggregateOrders(orders: ReportOrder[]): OrderReport {
     }
   }
   const topProducts = [...productMap.entries()].map(([name, value]) => ({ name, ...value })).sort((a, b) => b.revenue - a.revenue || a.name.localeCompare(b.name));
-  const topCustomers = [...customerMap.entries()].map(([customerId, value]) => ({ customerId, ...value })).sort((a, b) => b.revenue - a.revenue || a.customerId.localeCompare(b.customerId));
+  const topCustomers = [...customerMap.entries()].sort(([, left], [, right]) => right.revenue - left.revenue).map(([, value], index) => ({ customerBucket: `Cliente ${index + 1}`, ...value }));
   return { orderCount: orders.length, totalRevenue, revenueByStatus, topProducts, topCustomers, cancellationCount };
 }
 
@@ -46,11 +56,13 @@ function toReportOrder(id: string, data: Record<string, unknown>): ReportOrder {
 }
 
 export async function generateOrderReport(filter: OrderReportFilter): Promise<OrderReport> {
-  const snapshot = await getAdminDb().collection("pedidos").orderBy("createdAt", "desc").limit(500).get();
+  const validatedFilter = orderReportFilterSchema.parse(filter);
+  let query = getAdminDb().collection("pedidos").orderBy("createdAt", "asc");
+  if (validatedFilter.from) query = query.where("createdAt", ">=", validatedFilter.from) as typeof query;
+  if (validatedFilter.to) query = query.where("createdAt", "<=", validatedFilter.to) as typeof query;
+  const snapshot = await query.get();
   const orders = snapshot.docs.map((document) => toReportOrder(document.id, document.data() as Record<string, unknown>)).filter((order) => {
-    if (filter.from && order.createdAt < filter.from) return false;
-    if (filter.to && order.createdAt > filter.to) return false;
-    return !filter.status || order.status === filter.status;
+    return !validatedFilter.status || order.status === validatedFilter.status;
   });
   return aggregateOrders(orders);
 }

@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { get, where, collection, doc, set, update } = vi.hoisted(() => ({
+const { get, where, collection, doc, set, update, runTransaction, transactionSet, transactionUpdate, transactionDelete, transactionCreate } = vi.hoisted(() => ({
   get: vi.fn(),
   where: vi.fn(),
   collection: vi.fn(),
   doc: vi.fn(),
   set: vi.fn(),
   update: vi.fn(),
+  runTransaction: vi.fn(),
+  transactionSet: vi.fn(),
+  transactionUpdate: vi.fn(),
+  transactionDelete: vi.fn(),
+  transactionCreate: vi.fn(),
 }));
 
 const productCollection = { where, get, doc };
@@ -14,7 +19,7 @@ const categoryCollection = { where, get };
 const productRef = { id: "1", get, set, update };
 
 vi.mock("@/lib/firebase-admin", () => ({
-  getAdminDb: () => ({ collection }),
+  getAdminDb: () => ({ collection, runTransaction }),
 }));
 
 import {
@@ -66,6 +71,7 @@ describe("products repository", () => {
     where.mockReturnValue(productCollection);
     set.mockResolvedValue(undefined);
     update.mockResolvedValue(undefined);
+    runTransaction.mockImplementation(async (callback: (transaction: unknown) => Promise<unknown>) => callback({ set: transactionSet, update: transactionUpdate, delete: transactionDelete, create: transactionCreate }));
   });
 
   it("lista solo productos activos y los mapea con su id documental", async () => {
@@ -124,10 +130,10 @@ describe("products repository", () => {
   it("valida y escribe productos solo con permiso de escritura", async () => {
     await expect(createProduct(productInput, caller, "1")).resolves.toBe("1");
     expect(doc).toHaveBeenCalledWith("1");
-    expect(set).toHaveBeenCalledWith(expect.objectContaining(productInput));
+    expect(transactionSet).toHaveBeenCalledWith(expect.anything(), expect.objectContaining(productInput));
 
     await updateProduct("1", { ...productInput, price: 9000 }, caller);
-    expect(update).toHaveBeenCalledWith(expect.objectContaining({ price: 9000 }));
+    expect(transactionUpdate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ price: 9000 }));
   });
 
   it("rechaza escrituras sin permiso de catálogo", async () => {

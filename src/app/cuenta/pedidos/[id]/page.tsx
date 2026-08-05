@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import { buildWhatsAppMessage } from '@/lib/orders/whatsapp-message';
 import type { CustomerOrder, OrderStatus } from '@/types/orders';
+import type { StoreConfiguration } from '@/types/operations';
 
 const statusLabels: Record<OrderStatus, string> = {
   pendiente: 'Pendiente', confirmado: 'Confirmado', preparando: 'En preparación', en_camino: 'En camino', entregado: 'Entregado', cancelado: 'Cancelado',
@@ -34,10 +35,16 @@ export default function AccountOrderDetailPage({ params }: { params: Promise<{ i
   const [order, setOrder] = useState<CustomerOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [configuration, setConfiguration] = useState<StoreConfiguration | null>(null);
 
   useEffect(() => {
     if (!user) return;
     let active = true;
+    void fetch('/api/configuration').then(async (response) => {
+      if (!response.ok || !active) return;
+      const data = await response.json() as { configuration?: StoreConfiguration };
+      if (active && data.configuration) setConfiguration(data.configuration);
+    }).catch(() => undefined);
     void user.getIdToken().then(async (token) => {
       const response = await fetch(`/api/pedidos/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!active) return;
@@ -56,12 +63,14 @@ export default function AccountOrderDetailPage({ params }: { params: Promise<{ i
   if (loading) return <div className="rounded-2xl border border-border bg-card/60 p-6 text-sm text-muted-foreground">Cargando el detalle...</div>;
   if (error || !order) return <div className="space-y-4 rounded-2xl border border-destructive/30 bg-destructive/10 p-5"><p role="alert" className="text-sm text-destructive">{error || 'Pedido no disponible.'}</p><Button variant="outline" asChild><Link href="/cuenta/pedidos"><ArrowLeft className="mr-2 h-4 w-4" /> Volver a mis pedidos</Link></Button></div>;
 
-  const whatsappPhone = process.env.NEXT_PUBLIC_WHATSAPP_PHONE || '';
+  const whatsappPhone = configuration?.whatsappNumber || '';
+  const statusMessage = configuration?.messages.orderStatus.replace('{status}', statusLabels[order.status]);
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3"><Button variant="ghost" size="sm" asChild><Link href="/cuenta/pedidos"><ArrowLeft className="mr-2 h-4 w-4" /> Mis pedidos</Link></Button><Badge variant="outline" className={order.status === 'cancelado' ? 'border-destructive/50 text-destructive' : 'border-accent/50 text-accent'}>{statusLabels[order.status]}</Badge></div>
       <div><p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">Detalle de pedido</p><h2 className="mt-1 font-headline text-2xl font-bold text-primary md:text-3xl">#{order.id}</h2><p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" /> {formatDate(order.createdAt)}</p></div>
+      {statusMessage && <p className="rounded-lg bg-accent/10 px-4 py-3 text-sm font-medium text-accent">{statusMessage}</p>}
 
       <Card className="border-primary/20 bg-card/80">
         <CardHeader className="border-b border-border/70 p-5 md:p-6"><CardTitle className="flex items-center gap-2 text-lg"><ReceiptText className="h-5 w-5 text-primary" /> Productos</CardTitle></CardHeader>

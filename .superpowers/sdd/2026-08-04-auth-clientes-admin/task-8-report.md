@@ -58,3 +58,41 @@ PASS: no whitespace errors
 - Lint reports pre-existing warnings in `src/app/layout.tsx`, `src/app/page.tsx`, `src/firebase/firestore/use-memo-firebase.tsx`, and `src/hooks/use-toast.ts`.
 - Firestore production deployments still need the appropriate composite indexes and rules for the new bounded queries.
 - No Firebase emulator or browser E2E run was available in this task; the pure invariants and complete Vitest suite were executed.
+
+## Review Fixes
+
+The follow-up review fixes are included in the next commit:
+
+- `PATCH /api/notifications` now requires `notificaciones.read` through `requirePermission` and still passes the authenticated UID to the ownership check.
+- `usageCount` was removed from the writable promotion input schema. Promotion updates read and preserve the stored counter inside their transaction.
+- Order creation re-reads and parses the promotion inside the order transaction, revalidates code, active state, date range, scope, minimum subtotal, caps, and usage count, then increments usage and creates the order together.
+- Reports use Firestore `createdAt` range filters without a 500-document limit, reject inverted date ranges with `422`, and expose anonymous `Cliente N` buckets instead of customer UIDs.
+- Product, category, promotion, configuration, and order-create audit records are now written with their business mutation in the same Firestore transaction.
+- Customer and admin order views load `/api/configuration`; WhatsApp links use the configured business number and configured order/status messages are displayed. A public read-only configuration endpoint exposes the validated customer-facing settings.
+- Business-hour validation now rejects impossible times such as `29:90`; the promotion form exposes active state, scope, and usage limits.
+
+### Review Verification
+
+```text
+npm test -- --run tests/lib/promotions.test.ts tests/lib/order-report.test.ts tests/lib/configuration.test.ts tests/api/notifications-review.test.ts tests/lib/products-repository.test.ts
+PASS: 5 files, 18 tests
+
+npm run typecheck
+PASS
+```
+
+Final post-fix verification:
+
+```text
+npm test
+PASS: 28 files, 135 tests
+
+npm run lint
+PASS with the same pre-existing warnings in storefront/infra files only
+
+npm run typecheck
+PASS
+
+npm run build
+PASS: Next.js production build completed
+```

@@ -2,7 +2,7 @@ import "server-only";
 
 import { getAdminDb } from "@/lib/firebase-admin";
 import { AuthorizationError } from "@/lib/auth/verify-request";
-import { createAuditEntry } from "@/lib/firestore/audit";
+import { writeAuditInTransaction } from "@/lib/firestore/audit";
 import { categoryInputSchema } from "@/lib/validation/catalog";
 import type { Category, CategoryInput, CatalogCaller } from "@/types/catalog";
 
@@ -40,19 +40,30 @@ export async function createCategory(input: CategoryInput, caller: CatalogCaller
   requireCategoryPermission(caller, "categorias.write");
   const validated = categoryInputSchema.parse(input);
   const reference = id ? categoryCollection().doc(id) : categoryCollection().doc();
-  await reference.set({ ...validated, updatedAt: new Date().toISOString() });
-  await createAuditEntry({ actorUid: caller.uid, action: "create", module: "categorias", entityId: reference.id, changes: validated });
+  const data = { ...validated, updatedAt: new Date().toISOString() };
+  await getAdminDb().runTransaction(async (transaction) => {
+    transaction.set(reference, data);
+    writeAuditInTransaction(transaction, { actorUid: caller.uid, action: "create", module: "categorias", entityId: reference.id, changes: validated });
+  });
   return reference.id;
 }
 
 export async function updateCategory(id: string, input: CategoryInput, caller: CatalogCaller): Promise<void> {
   requireCategoryPermission(caller, "categorias.write");
-  await categoryCollection().doc(id).update({ ...categoryInputSchema.parse(input), updatedAt: new Date().toISOString() });
-  await createAuditEntry({ actorUid: caller.uid, action: "update", module: "categorias", entityId: id, changes: input });
+  const reference = categoryCollection().doc(id);
+  const validated = categoryInputSchema.parse(input);
+  const data = { ...validated, updatedAt: new Date().toISOString() };
+  await getAdminDb().runTransaction(async (transaction) => {
+    transaction.update(reference, data);
+    writeAuditInTransaction(transaction, { actorUid: caller.uid, action: "update", module: "categorias", entityId: id, changes: validated });
+  });
 }
 
 export async function deleteCategory(id: string, caller: CatalogCaller): Promise<void> {
   requireCategoryPermission(caller, "categorias.write");
-  await categoryCollection().doc(id).delete();
-  await createAuditEntry({ actorUid: caller.uid, action: "delete", module: "categorias", entityId: id });
+  const reference = categoryCollection().doc(id);
+  await getAdminDb().runTransaction(async (transaction) => {
+    transaction.delete(reference);
+    writeAuditInTransaction(transaction, { actorUid: caller.uid, action: "delete", module: "categorias", entityId: id });
+  });
 }

@@ -35,7 +35,7 @@ export type Promotion = {
   maxDiscount?: number;
 };
 
-export type PromotionInput = Omit<Promotion, "id" | "usageCount"> & { usageCount?: number };
+export type PromotionInput = Omit<Promotion, "id" | "usageCount">;
 
 export type PromotionContextItem = { productId: string; category: string; subtotal: number };
 
@@ -130,6 +130,6 @@ export type OrderReport = {
   totalRevenue: number;
   revenueByStatus: Record<string, number>;
   topProducts: Array<{ name: string; quantity: number; revenue: number }>;
-  topCustomers: Array<{ customerId: string; orders: number; revenue: number }>;
+  topCustomers: Array<{ customerBucket: string; orders: number; revenue: number }>;
   cancellationCount: number;
 };

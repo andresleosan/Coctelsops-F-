@@ -4,9 +4,9 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { AuthorizationError } from "@/lib/auth/verify-request";
 import { getProductById } from "@/lib/firestore/products";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { createAuditEntry, writeAuditInTransaction } from "@/lib/firestore/audit";
+import { writeAuditInTransaction } from "@/lib/firestore/audit";
 import { createNotification } from "@/lib/firestore/notifications";
-import { calculatePromotion, getPromotionByCode } from "@/lib/firestore/promotions";
+import { calculatePromotion, getPromotionByCode, toPromotion } from "@/lib/firestore/promotions";
 import { toCustomerOrder } from "@/lib/orders/customer-order";
 import {
   assertOrderOwnership,
@@ -113,26 +113,26 @@ export async function createOrder(user: VerifiedUser, input: CreateOrderInput): 
   };
   const db = getAdminDb();
   const reference = db.collection("pedidos").doc();
+  const promotionItems = calculated.items.map((item) => ({ productId: item.productId, category: availableProducts.find((product) => product.id === item.productId)?.category ?? "", subtotal: item.subtotal }));
+  let orderData = data;
   await db.runTransaction(async (transaction) => {
     if (promotionId) {
       const promotionReference = db.collection("promociones").doc(promotionId);
       const promotionSnapshot = await transaction.get(promotionReference);
-      const promotionData = (promotionSnapshot.data() ?? {}) as Record<string, unknown>;
-      const usageCount = typeof promotionData.usageCount === "number" ? promotionData.usageCount : 0;
-      const usageLimit = typeof promotionData.usageLimit === "number" ? promotionData.usageLimit : undefined;
-      if (!promotionSnapshot.exists || promotionData.active !== true || (usageLimit !== undefined && usageCount >= usageLimit)) {
-        throw new OrderValidationError("La promoción ya no está disponible");
-      }
-      transaction.update(promotionReference, { usageCount: usageCount + 1, updatedAt: new Date().toISOString() });
+      if (!promotionSnapshot.exists) throw new OrderValidationError("La promoción ya no está disponible");
+      const currentPromotion = toPromotion(promotionId, promotionSnapshot.data() as Record<string, unknown>);
+      if (currentPromotion.code !== validated.promotionCode?.toUpperCase()) throw new OrderValidationError("La promoción ya no está disponible");
+      const currentResult = calculatePromotion({ promotion: currentPromotion, subtotal: calculated.subtotal, now: new Date().toISOString(), items: promotionItems });
+      if (!currentResult.applied) throw new OrderValidationError(`La promoción ya no es válida: ${currentResult.reason}`);
+      orderData = { ...data, total: currentResult.total, promotionCode: currentPromotion.code };
+      transaction.update(promotionReference, { usageCount: currentPromotion.usageCount + 1, updatedAt: new Date().toISOString() });
     }
-    transaction.create(reference, data);
+    transaction.create(reference, orderData);
+    writeAuditInTransaction(transaction, { actorUid: user.uid, action: "create", module: "pedidos", entityId: reference.id, changes: { total: orderData.total, itemCount: orderData.items.length, promotionCode: orderData.promotionCode } });
   });
-  await Promise.all([
-    createAuditEntry({ actorUid: user.uid, action: "create", module: "pedidos", entityId: reference.id, changes: { total: data.total, itemCount: data.items.length } }),
-    createNotification({ audience: "admin", title: "Nuevo pedido", message: `Se recibió el pedido #${reference.id.slice(0, 8)}.`, orderId: reference.id }),
-  ]);
+  await createNotification({ audience: "admin", title: "Nuevo pedido", message: `Se recibió el pedido #${reference.id.slice(0, 8)}.`, orderId: reference.id });
 
-  return { id: reference.id, ...data };
+  return { id: reference.id, ...orderData };
 }
 
 export async function listOrders(user: VerifiedUser): Promise<Order[]> {

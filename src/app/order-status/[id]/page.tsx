@@ -9,6 +9,7 @@ import { CheckCircle2, Package, MapPin, Clock, Home, MessageSquare } from 'lucid
 import { useAuth } from '@/hooks/use-auth';
 import { buildWhatsAppMessage } from '@/lib/orders/whatsapp-message';
 import type { Order, OrderStatus } from '@/types/orders';
+import type { StoreConfiguration } from '@/types/operations';
 
 const statusSteps: Array<{ status: OrderStatus; title: string; description: string }> = [
   { status: 'pendiente', title: 'Pedido recibido', description: 'Hemos recibido tu solicitud.' },
@@ -29,6 +30,7 @@ export default function OrderStatusPage({ params }: { params: Promise<{ id: stri
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [configuration, setConfiguration] = useState<StoreConfiguration | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -38,6 +40,11 @@ export default function OrderStatusPage({ params }: { params: Promise<{ id: stri
     }
 
     let active = true;
+    void fetch('/api/configuration').then(async (response) => {
+      if (!response.ok || !active) return;
+      const data = await response.json() as { configuration?: StoreConfiguration };
+      if (active && data.configuration) setConfiguration(data.configuration);
+    }).catch(() => undefined);
     void user.getIdToken().then(async (token) => {
       const response = await fetch(`/api/pedidos/${encodeURIComponent(id)}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -80,7 +87,8 @@ export default function OrderStatusPage({ params }: { params: Promise<{ id: stri
   }
 
   const currentIndex = statusSteps.findIndex((step) => step.status === order.status);
-  const businessPhone = process.env.NEXT_PUBLIC_WHATSAPP_PHONE || '';
+  const businessPhone = configuration?.whatsappNumber || '';
+  const statusMessage = configuration?.messages.orderStatus.replace('{status}', statusLabel(order.status));
 
   return (
     <div className="container mx-auto px-4 py-16">
@@ -90,8 +98,8 @@ export default function OrderStatusPage({ params }: { params: Promise<{ id: stri
         </div>
 
         <div className="space-y-2">
-          <h1 className="font-headline text-4xl font-bold text-primary">Pedido recibido</h1>
-          <p className="text-xl text-muted-foreground">Tu orden <span className="font-bold text-foreground">#{order.id}</span> esta <span className="font-bold text-primary">{statusLabel(order.status)}</span>.</p>
+           <h1 className="font-headline text-4xl font-bold text-primary">{configuration?.messages.orderReceived || 'Pedido recibido'}</h1>
+           <p className="text-xl text-muted-foreground">{statusMessage || <>Tu orden <span className="font-bold text-foreground">#{order.id}</span> esta <span className="font-bold text-primary">{statusLabel(order.status)}</span>.</>}</p>
         </div>
 
         <Card className="overflow-hidden border-none bg-white text-left shadow-xl">

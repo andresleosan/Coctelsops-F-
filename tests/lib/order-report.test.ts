@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { aggregateOrders } from "@/lib/reports/order-report";
+import { aggregateOrders, orderReportFilterSchema } from "@/lib/reports/order-report";
 import type { ReportOrder } from "@/types/operations";
 
 const orders: ReportOrder[] = [
@@ -16,8 +16,12 @@ describe("reporte agregado de pedidos", () => {
       totalRevenue: 65_000,
       revenueByStatus: { entregado: 35_000, cancelado: 30_000 },
       topProducts: [{ name: "Fresa", quantity: 3, revenue: 35_000 }, { name: "Mango", quantity: 1, revenue: 30_000 }],
-      topCustomers: [{ customerId: "a", orders: 2, revenue: 35_000 }, { customerId: "b", orders: 1, revenue: 30_000 }],
+      topCustomers: [{ customerBucket: "Cliente 1", orders: 2, revenue: 35_000 }, { customerBucket: "Cliente 2", orders: 1, revenue: 30_000 }],
       cancellationCount: 1,
     });
+  });
+
+  it("rechaza un rango donde la fecha inicial supera la final", () => {
+    expect(() => orderReportFilterSchema.parse({ from: "2026-08-10T00:00:00.000Z", to: "2026-08-01T00:00:00.000Z" })).toThrow("La fecha inicial");
   });
 });

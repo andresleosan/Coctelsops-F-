@@ -2,7 +2,7 @@ import "server-only";
 
 import { getAdminDb } from "@/lib/firebase-admin";
 import { AuthorizationError } from "@/lib/auth/verify-request";
-import { createAuditEntry } from "@/lib/firestore/audit";
+import { writeAuditInTransaction } from "@/lib/firestore/audit";
 import { productInputSchema } from "@/lib/validation/catalog";
 import type { CatalogCaller, CatalogPermission, Product, ProductInput } from "@/types/catalog";
 
@@ -77,22 +77,32 @@ export async function createProduct(input: ProductInput, caller: CatalogCaller, 
   const reference = id ? productCollection().doc(id) : productCollection().doc();
   const now = new Date().toISOString();
 
-  await reference.set({ ...validated, createdAt: now, updatedAt: now });
-  await createAuditEntry({ actorUid: caller.uid, action: "create", module: "productos", entityId: reference.id, changes: validated });
+  const data = { ...validated, createdAt: now, updatedAt: now };
+  await getAdminDb().runTransaction(async (transaction) => {
+    transaction.set(reference, data);
+    writeAuditInTransaction(transaction, { actorUid: caller.uid, action: "create", module: "productos", entityId: reference.id, changes: validated });
+  });
   return reference.id;
 }
 
 export async function updateProduct(id: string, input: ProductInput, caller: CatalogCaller): Promise<void> {
   requireCatalogPermission(caller, "productos.write");
   const validated = productInputSchema.parse(input);
-  await productCollection().doc(id).update({ ...validated, updatedAt: new Date().toISOString() });
-  await createAuditEntry({ actorUid: caller.uid, action: "update", module: "productos", entityId: id, changes: validated });
+  const reference = productCollection().doc(id);
+  const data = { ...validated, updatedAt: new Date().toISOString() };
+  await getAdminDb().runTransaction(async (transaction) => {
+    transaction.update(reference, data);
+    writeAuditInTransaction(transaction, { actorUid: caller.uid, action: "update", module: "productos", entityId: id, changes: validated });
+  });
 }
 
 export async function deleteProduct(id: string, caller: CatalogCaller): Promise<void> {
   requireCatalogPermission(caller, "productos.write");
-  await productCollection().doc(id).delete();
-  await createAuditEntry({ actorUid: caller.uid, action: "delete", module: "productos", entityId: id });
+  const reference = productCollection().doc(id);
+  await getAdminDb().runTransaction(async (transaction) => {
+    transaction.delete(reference);
+    writeAuditInTransaction(transaction, { actorUid: caller.uid, action: "delete", module: "productos", entityId: id });
+  });
 }
 
 export async function seedProduct(input: ProductInput, id: string): Promise<void> {
