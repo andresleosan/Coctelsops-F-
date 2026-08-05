@@ -80,7 +80,7 @@ npm run build
 
 Los tests de Vitest excluyen `tests/e2e/**`. La suite Playwright se ejecuta por separado con `npm run test:e2e` y requiere una aplicación levantada, navegadores instalados y estas variables de prueba: `E2E_BASE_URL`, `E2E_CUSTOMER_EMAIL`, `E2E_CUSTOMER_PASSWORD`, `E2E_STAFF_EMAIL`, `E2E_STAFF_PASSWORD`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD` y, para registro, `E2E_REGISTRATION_DOMAIN`. No uses credenciales reales en el archivo de test. En este entorno la ejecución browser E2E está deliberadamente diferida porque Playwright MCP está deshabilitado.
 
-La limpieza de datos temporales es opt-in: define `E2E_CLEANUP=true`, `E2E_CLEANUP_PROJECT_ID` y las variables privadas de Firebase Admin solo en un proyecto dedicado cuyo ID contenga `-e2e`; además, `FIREBASE_PROJECT_ID` debe coincidir exactamente con `E2E_CLEANUP_PROJECT_ID`. El hook elimina únicamente los pedidos creados por el escenario y los usuarios generados con el dominio E2E. Sin esa configuración no borra nada, y nunca debe habilitarse contra producción.
+La limpieza de datos temporales es opt-in y solo funciona contra emuladores locales: define `E2E_CLEANUP=true`, `E2E_CLEANUP_CONFIRM=DELETE_E2E_DATA`, `FIRESTORE_EMULATOR_HOST=localhost:8080` y `FIREBASE_AUTH_EMULATOR_HOST=localhost:9099`. El hook exige ambos hosts, rechaza cualquier host que no sea `localhost` o `127.0.0.1` y falla cerrado antes de borrar si falta alguna variable. Elimina únicamente los pedidos y usuarios generados en la ejecución emulada. Sin los hosts de emulador y la confirmación explícita no borra nada; no puede apuntar a producción ni a un proyecto Firebase remoto.
 
 El reporte de release con resultados, riesgos y limitaciones está en `docs/superpowers/reports/2026-08-04-auth-clientes-admin.md`.
 

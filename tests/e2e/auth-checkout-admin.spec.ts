@@ -1,7 +1,9 @@
-import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+
+import { getCleanupSafetyError } from "./cleanup-safety";
 
 const baseURL = process.env.E2E_BASE_URL;
 const customerEmail = process.env.E2E_CUSTOMER_EMAIL;
@@ -24,19 +26,14 @@ function newCleanupState(): CleanupState {
 async function cleanupE2EState(state: CleanupState): Promise<void> {
   if (process.env.E2E_CLEANUP !== "true" || (state.orderIds.length === 0 && state.registrationEmails.length === 0)) return;
 
-  const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
-  const cleanupProjectId = process.env.E2E_CLEANUP_PROJECT_ID?.trim();
-  if (!projectId || projectId !== cleanupProjectId || !/-e2e(?:-|$)/i.test(projectId)) {
-    throw new Error("E2E_CLEANUP requiere FIREBASE_PROJECT_ID = E2E_CLEANUP_PROJECT_ID y un proyecto cuyo ID contenga -e2e.");
-  }
+  const safetyError = getCleanupSafetyError(process.env);
+  if (safetyError) throw new Error(safetyError);
+  const projectId = process.env.FIREBASE_PROJECT_ID!.trim();
 
   const app = getApps().find((candidate) => candidate.name === "e2e-cleanup") ?? initializeApp({
-    credential: cert({
-      projectId,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    }),
+    projectId,
   }, "e2e-cleanup");
+  // Firebase Admin routes these clients to the local emulators via the required host variables.
   const db = getFirestore(app);
   const auth = getAuth(app);
 

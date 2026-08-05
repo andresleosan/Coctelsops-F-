@@ -16,7 +16,7 @@ Alcance: Task 10, verificación y documentación del trabajo de autenticación, 
 ## Correcciones posteriores de revisión
 
 - El escenario administrativo crea su propio pedido mediante un helper local; ya no depende del test de cliente, de `orderId` global ni de ejecución serial.
-- La limpieza E2E es opt-in (`E2E_CLEANUP=true`) y solo permite borrar pedidos y usuarios de registro generados cuando `FIREBASE_PROJECT_ID` coincide con `E2E_CLEANUP_PROJECT_ID` y el ID contiene `-e2e`.
+- La limpieza E2E es opt-in (`E2E_CLEANUP=true`, `E2E_CLEANUP_CONFIRM=DELETE_E2E_DATA`) y exige `FIRESTORE_EMULATOR_HOST` y `FIREBASE_AUTH_EMULATOR_HOST` en hosts loopback; no usa sufijos de proyecto como frontera de seguridad.
 
 ## Verificación automatizada
 
