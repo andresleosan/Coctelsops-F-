@@ -8,7 +8,7 @@
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --ignore-pattern next-env.d.ts --max-warnings=0",
     "test": "vitest run --exclude tests/e2e/**",
     "test:e2e": "playwright test tests/e2e",
     "test:watch": "vitest",

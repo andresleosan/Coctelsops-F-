@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Truck, MessageSquare, MapPin, Star } from 'lucide-react';
+import { ArrowRight, Truck, MessageSquare, MapPin } from 'lucide-react';
 import ProductCard from '@/components/products/ProductCard';
 import CocktailCarousel from '@/components/products/CocktailCarousel';
 import { getFeaturedProducts } from '@/lib/catalog/home';
@@ -13,8 +13,6 @@ export default async function Home() {
   
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-granizado')?.imageUrl || 'https://picsum.photos/seed/ops-hero/1200/800';
   const logoImage = PlaceHolderImages.find(img => img.id === 'logo-ops')?.imageUrl || 'https://picsum.photos/seed/ops-logo/600/600';
-  const deliveryImage = PlaceHolderImages.find(img => img.id === 'delivery-info')?.imageUrl || 'https://picsum.photos/seed/ops-delivery/800/600';
-
   return (
     <div className="flex flex-col gap-12 md:gap-20 pb-20 bg-background text-white">
       {/* Hero Section */}

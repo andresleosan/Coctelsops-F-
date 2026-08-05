@@ -1,7 +1,7 @@
 # Reporte de Release: Auth, Clientes y Panel Administrativo
 
 Fecha: 2026-08-04
-Task 10 revisada: base `82b4ef3`, head `12a8a37`
+Task 10 revisada: base `82b4ef3`, head `12a8a37`; seguimiento de cierre hasta `d7d2274`
 Rango amplio de implementación previa: `d63b23b..82b4ef3`
 Alcance: Task 10, verificación y documentación del trabajo de autenticación, cuentas, checkout seguro, operaciones administrativas y migración idempotente.
 
@@ -27,9 +27,9 @@ Los comandos obligatorios se ejecutaron desde `C:\Users\USER\AppData\Local\Temp\
 Resultado: **PASS**, código de salida `0`.
 
 ```text
-Test Files  31 passed (31)
-Tests       147 passed (147)
-Duration    11.26s (transform 1.87s, setup 13.04s, import 10.70s, tests 353ms, environment 74.37s)
+Test Files  38 passed (38)
+Tests       162 passed (162)
+Duration    19.45s (transform 1.94s, setup 32.92s, import 28.95s, tests 1.04s, environment 122.95s)
 ```
 
 El script ejecuta `vitest run --exclude tests/e2e/**` para separar Vitest de Playwright.
@@ -47,35 +47,18 @@ Salida relevante:
 
 ### `npm run lint`
 
-Resultado: **PASS**, código de salida `0`, con warnings que deben permanecer visibles en la decisión de release.
-
-Warnings exactos:
+Resultado: **PASS**, código de salida `0`, usando ESLint CLI con `--max-warnings=0`.
 
 ```text
-`next lint` is deprecated and will be removed in Next.js 16.
-For new projects, use create-next-app to choose your preferred linter.
-For existing projects, migrate to the ESLint CLI:
-npx @next/codemod@canary next-lint-to-eslint-cli .
-
-./src/app/layout.tsx
-26:9  Warning: Custom fonts not added in `pages/_document.js` will only load for a single page. This is discouraged. See: https://nextjs.org/docs/messages/no-page-custom-font  @next/next/no-page-custom-font
-
-./src/app/page.tsx
-5:52  Warning: 'Star' is defined but never used.  @typescript-eslint/no-unused-vars
-16:9  Warning: 'deliveryImage' is assigned a value but never used.  @typescript-eslint/no-unused-vars
-
-./src/firebase/firestore/use-memo-firebase.tsx
-7:10  Warning: React Hook useMemo received a function whose dependencies are unknown. Pass an inline function instead.  react-hooks/exhaustive-deps
-
-./src/hooks/use-toast.ts
-21:7  Warning: 'actionTypes' is assigned a value but only used as a type.  @typescript-eslint/no-unused-vars
+> nextn@0.1.0 lint
+> eslint . --ignore-pattern next-env.d.ts --max-warnings=0
 ```
 
 ### `npm run build`
 
 Resultado: **PASS**, código de salida `0`.
 
-El build compiló correctamente, generó las 47 páginas estáticas/dinámicas esperadas y mostró los mismos warnings de ESLint listados arriba. También mostró el aviso de migración de `next lint`; no hubo errores de compilación, tipos ni generación de páginas.
+El build compiló correctamente, generó las 47 páginas estáticas/dinámicas esperadas y no mostró warnings de compilación ni lint.
 
 ### Instalación de dependencias
 
@@ -89,7 +72,7 @@ npm warn Conflicting peer dependency: @types/node@26.1.2
 npm warn allow-scripts 6 packages have install scripts not yet covered by allowScripts
 ```
 
-La instalación también reportó `94 vulnerabilities (2 low, 64 moderate, 26 high, 2 critical)`; el detalle y el riesgo están en la sección de seguridad.
+La instalación actual reporta `66 vulnerabilities (53 moderate, 13 high)`; el detalle y el riesgo están en la sección de seguridad.
 
 ### `npm run test:e2e`
 
@@ -111,15 +94,15 @@ No se ejecutó interacción browser real: el repositorio tiene Playwright MCP de
 ## Migración y operación
 
 - La implementación previa conserva `orders`, copia a `pedidos` con IDs estables, omite destinos migrados y falla ante discrepancias.
-- Las pruebas automatizadas de migración forman parte de los 147 tests pasados.
+- Las pruebas automatizadas de migración forman parte de los 162 tests pasados.
 - No se ejecutó migración real ni seed real contra Firebase. No había credenciales operativas, backup verificado ni aprobación del operador.
 - Antes de producción se debe revisar el proyecto Firebase, desplegar reglas/índices, verificar backup, ejecutar migración en ventana aprobada y correr `scripts/verify-migration.ts`.
 
 ## Riesgos y trabajo diferido
 
-- `npm audit` reporta **94 vulnerabilities (2 low, 64 moderate, 26 high, 2 critical)**. El reporte incluye vulnerabilidades transitivas de Next.js, Firebase/Google Cloud, Genkit, `websocket-driver` y otras dependencias. `npm audit fix --force` propone cambios potencialmente incompatibles, por lo que no se aplicó automáticamente.
-- `next lint` está deprecado y debe migrarse al flujo ESLint antes de actualizar a Next.js 16.
-- Permanecen los cinco warnings de lint indicados arriba.
+- `npm audit` reporta actualmente **66 vulnerabilidades (53 moderate, 13 high)**. El reporte incluye vulnerabilidades transitivas de Next.js, Firebase/Google Cloud, Genkit y OpenTelemetry. `npm audit fix --force` propone cambios potencialmente incompatibles, por lo que no se aplicó automáticamente.
+- `npm run lint` usa ESLint CLI y termina sin warnings; la regla de fuentes del Root Layout está desactivada únicamente para ese archivo porque la aplicación usa App Router.
+- `npm run build` termina correctamente sin el warning del exporter Jaeger; el alias de webpack deja explícito que esta aplicación no soporta ese exporter opcional.
 - Playwright MCP está deshabilitado; E2E browser y responsive quedan como riesgo de release hasta ejecutarse en un entorno habilitado.
 - No hay pasarela de pago. La confirmación por WhatsApp solo genera una navegación preparada y mockeada en la suite; no se usa la API oficial ni se envían mensajes automáticamente.
 - No se desplegó producción. No se aplicó migración de producción.
@@ -129,6 +112,15 @@ No se ejecutó interacción browser real: el repositorio tiene Playwright MCP de
 - Task 10 no añadió credenciales reales ni secretos; la suite usa únicamente variables de entorno y valores de prueba no versionados.
 - Las reglas e índices se publican mediante Firebase CLI y las rutas administrativas mantienen la autorización implementada en tareas anteriores.
 - La auditoría de dependencias es un bloqueo/riesgo abierto de release y requiere triage separado. No se ocultó ni se corrigió con una actualización forzada durante esta tarea.
+
+## Seguimiento de cierre
+
+- Se ejecutó `npm audit fix` sin `--force`; no hubo actualizaciones aplicables y no se modificó el lockfile.
+- El audit actual reporta **66 vulnerabilidades (53 moderate, 13 high)**. Las vulnerabilidades restantes provienen principalmente de la cadena Genkit/Google Cloud/OpenTelemetry y de Next.js 15.5.9; la corrección automática de Next.js propone `next@15.5.22` fuera de la dependencia fijada y requiere revisión compatible separada.
+- Se corrigieron tres warnings locales no funcionales: imports/variables sin uso en la página principal, el wrapper `useMemoFirebase` y el tipo de acciones de toast.
+- Se migró el script de lint a ESLint CLI, se corrigieron los errores de configuración de Vitest/Tailwind y se renombró la configuración de Vitest a `.mts` para evitar warnings ESM. También se excluyó explícitamente el módulo Jaeger opcional del bundle.
+- La verificación posterior registra 162 tests Vitest pasados, typecheck correcto, lint sin warnings y build correcto sin warnings.
+- No se ejecutaron migración/seed reales, pruebas de reglas con emulador, E2E browser ni responsive manual porque siguen requiriendo configuración de entorno y aprobación operativa.
 
 ## Decisión
 
