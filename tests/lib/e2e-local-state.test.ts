@@ -8,6 +8,7 @@ import {
   createLocalE2EPassword,
   createLocalE2EState,
   isLocalE2EState,
+  LOCAL_E2E_ROLES,
 } from "../../scripts/e2e-local-state";
 import {
   cleanupLocalE2EState,
@@ -41,6 +42,11 @@ describe("estado E2E local", () => {
 
     expect(passwords.every((password) => password.length >= 12)).toBe(true);
     expect(passwords[0]).not.toBe(passwords[1]);
+  });
+
+  it("mantiene un contador explícito de los tres usuarios E2E", () => {
+    expect(LOCAL_E2E_ROLES).toEqual(["customer", "staff", "admin"]);
+    expect(LOCAL_E2E_ROLES).toHaveLength(3);
   });
 
   it("no incluye credenciales reales en los archivos del setup", () => {

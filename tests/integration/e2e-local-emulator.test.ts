@@ -55,6 +55,22 @@ describeWhenReady("estado E2E contra Firebase Emulator", () => {
     expect(existsSync(".tmp/e2e/local-state.json")).toBe(false);
   }, 30_000);
 
+  it("falla cerrado si el claim e2eRunId no coincide y no borra datos", async () => {
+    const state = await prepareLocalE2EState();
+    const { getAdminAuth, getAdminDb } = await import("../../src/lib/firebase-admin");
+    const auth = getAdminAuth();
+    const db = getAdminDb();
+
+    try {
+      await auth.setCustomUserClaims(state.customer.uid, { e2eRunId: "e2e-otro-run" });
+      await expect(cleanupLocalE2EState(state)).rejects.toThrow("claim e2eRunId");
+      expect((await db.collection("users").doc(state.customer.uid).get()).exists).toBe(true);
+    } finally {
+      await auth.setCustomUserClaims(state.customer.uid, { e2eRunId: state.runId });
+      await cleanupLocalE2EState(state);
+    }
+  }, 30_000);
+
   it("revierte Auth y perfiles si falla la creacion de un recurso propio", async () => {
     const { getAdminAuth, getAdminDb } = await import("../../src/lib/firebase-admin");
     const auth = getAdminAuth();

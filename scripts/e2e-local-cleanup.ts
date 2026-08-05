@@ -9,6 +9,7 @@ import {
   getLocalE2EResourcePlan,
   getLocalE2EStatePath,
   isLocalE2EState,
+  LOCAL_E2E_ROLES,
   LOCAL_E2E_OWNERSHIP_FIELD,
   type LocalE2EResourceRef,
   type LocalE2EState,
@@ -75,9 +76,13 @@ async function getOwnedResourceReferences(db: Firestore, state: LocalE2EState, o
 
 async function getOwnedAuthUsers(auth: Auth, state: LocalE2EState): Promise<string[]> {
   const owned: string[] = [];
-  for (const role of ["customer", "staff", "admin"] as const) {
+  for (const role of LOCAL_E2E_ROLES) {
     try {
       const user = await auth.getUser(state[role].uid);
+      const customClaims = user.customClaims as Record<string, unknown> | undefined;
+      if (customClaims?.e2eRunId !== state.runId) {
+        throw new Error(`El usuario Auth ${state[role].uid} no tiene el claim e2eRunId esperado; cleanup abortado sin borrar.`);
+      }
       if (user.email !== state[role].email) {
         throw new Error(`El usuario Auth ${state[role].uid} no coincide con el estado E2E; cleanup abortado sin borrar.`);
       }

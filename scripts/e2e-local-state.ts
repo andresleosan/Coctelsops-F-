@@ -6,7 +6,8 @@ import { assertLoopbackEmulatorHosts } from "../src/firebase/emulators";
 import { DEFAULT_STORE_CONFIGURATION } from "../src/types/operations";
 import { PRODUCTS } from "../src/app/lib/products";
 
-export type LocalE2ERole = "customer" | "staff" | "admin";
+export const LOCAL_E2E_ROLES = ["customer", "staff", "admin"] as const;
+export type LocalE2ERole = (typeof LOCAL_E2E_ROLES)[number];
 export const LOCAL_E2E_STATE_VERSION = 1 as const;
 export const LOCAL_E2E_OWNERSHIP_FIELD = "e2eRunId" as const;
 
@@ -223,7 +224,12 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
       if (user.uid !== state[role].uid) throw new Error("Firebase Auth no devolvio el UID E2E esperado.");
     }
 
-    await auth.setCustomUserClaims(state.admin.uid, { admin: true });
+    for (const role of LOCAL_E2E_ROLES) {
+      await auth.setCustomUserClaims(state[role].uid, {
+        e2eRunId: state.runId,
+        ...(role === "admin" ? { admin: true } : {}),
+      });
+    }
 
     for (const role of Object.keys(ROLE_SEEDS) as LocalE2ERole[]) {
       const seed = ROLE_SEEDS[role];
@@ -306,8 +312,8 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
 
 if (require.main === module) {
   prepareLocalE2EState()
-    .then((state) => {
-      console.log(`Estado E2E local preparado para ${Object.values(state).length} usuarios.`);
+    .then(() => {
+      console.log(`Estado E2E local preparado para ${LOCAL_E2E_ROLES.length} usuarios.`);
     })
     .catch((error: unknown) => {
       console.error("No fue posible preparar el estado E2E local", error instanceof Error ? error.message : "Error desconocido");
