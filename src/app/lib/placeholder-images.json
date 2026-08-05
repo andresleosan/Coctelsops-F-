@@ -3,9 +3,9 @@
   "placeholderImages": [
     {
       "id": "logo-ops",
-      "description": "Logo circular oficial Coctels OPS: 'LOS ORIGINALES' en cian neón, 'COCTELS' en magenta neón, 'OPS' en blanco gigante con calaveras decorativas y vasos neón sobre fondo negro",
-      "imageUrl": "/Contels_OPS.Perfil.png",
-      "imageHint": "neon logo with skulls"
+      "description": "Logo circular oficial Coctels OPS: texto 'LOS ORIGINALES' en cian neón, 'COCTELS' en magenta neón, 'OPS' en blanco gigante, con cornucopias blancas en la base sobre fondo negro circular",
+      "imageUrl": "https://picsum.photos/seed/ops-official-branding/600/600",
+      "imageHint": "neon logo"
     },
     {
       "id": "hero-granizado",
@@ -22,32 +22,20 @@
     {
       "id": "product-strawberry",
       "description": "Granizado de fresa con fruta picada y brillo neón",
-      "imageUrl": "/Fresa.png",
+      "imageUrl": "https://picsum.photos/seed/ops-product-fresa/600/600",
       "imageHint": "strawberry drink"
     },
     {
       "id": "product-mango",
       "description": "Granizado de mango biche colombiano con sal y limón",
-      "imageUrl": "/Mango.png",
+      "imageUrl": "https://picsum.photos/seed/ops-product-mango/600/600",
       "imageHint": "mango granizado"
     },
     {
       "id": "product-coco",
       "description": "Granizado de coco y piña tropical con cerezas",
-      "imageUrl": "/Coco.png",
+      "imageUrl": "https://picsum.photos/seed/ops-product-coco/600/600",
       "imageHint": "coconut drink"
-    },
-    {
-      "id": "product-maracuya",
-      "description": "Explosión de maracuyá con semillas crocantes y hierbabuena fresca",
-      "imageUrl": "/Maracuya.png",
-      "imageHint": "passion fruit drink"
-    },
-    {
-      "id": "product-lulo",
-      "description": "Lulo refrescante tradicional con ese toque ácido que despierta",
-      "imageUrl": "/Lulo.png",
-      "imageHint": "lulo granizado"
     }
   ]
 }

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Truck, MessageSquare, MapPin, Star } from 'lucide-react';
 import ProductCard from '@/components/products/ProductCard';
-import CocktailCarousel from '@/components/products/CocktailCarousel';
 import { PRODUCTS } from './lib/products';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
@@ -31,14 +30,14 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/80 to-black"></div>
         </div>
         
-        <div className="container mx-auto px-4 relative z-10 text-center space-y-6 animate-fade-in flex flex-col items-center justify-center min-h-full">
-          <div className="flex justify-center w-full">
-            <div className="relative w-44 h-44 md:w-72 md:h-72 rounded-full border-4 border-primary p-1 shadow-[0_0_40px_rgba(233,30,99,0.5)] bg-black overflow-hidden group transition-all flex items-center justify-center">
+        <div className="container mx-auto px-4 relative z-10 text-center space-y-6 animate-fade-in">
+          <div className="flex justify-center">
+            <div className="relative w-44 h-44 md:w-72 md:h-72 rounded-full border-4 border-primary p-1 shadow-[0_0_40px_rgba(233,30,99,0.5)] bg-black overflow-hidden group transition-all">
               <Image 
                 src={logoImage} 
                 alt="COCTELS OPS OFICIAL" 
                 fill 
-                className="object-cover object-center transition-transform duration-700 group-hover:scale-105"
+                className="object-cover transition-transform duration-700 group-hover:scale-105"
                 priority
                 data-ai-hint="neon logo"
               />
@@ -122,8 +121,24 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="relative aspect-square rounded-2xl overflow-hidden shadow-2xl border border-white/5 order-first md:order-last">
-              <CocktailCarousel />
+            <div className="relative aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/5 order-first md:order-last">
+              <Image 
+                src={deliveryImage} 
+                alt="Delivery OPS" 
+                fill 
+                className="object-cover"
+                data-ai-hint="delivery motorcycle"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+              <div className="absolute bottom-4 left-4 right-4">
+                <div className="bg-black/90 backdrop-blur-xl p-3 rounded-xl border border-primary/40 flex items-center justify-between">
+                  <span className="font-bold text-[9px] uppercase tracking-widest text-white">ESTADO OPS</span>
+                  <span className="flex items-center gap-2 text-green-400 text-[9px] font-black uppercase">
+                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-ping"></span>
+                    ABIERTO AHORA
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -35,27 +35,6 @@ export default function MenuPage() {
         </p>
       </div>
 
-      {/* Menú Interactivo Canva */}
-      <div className="mb-16 text-center">
-        <div className="bg-card/40 border border-primary/20 rounded-[2rem] p-8 backdrop-blur-xl">
-          <h2 className="text-2xl md:text-3xl font-headline font-bold text-primary mb-4">Ver Menú Completo</h2>
-          <p className="text-muted-foreground mb-6">Abre nuestro menú interactivo para explorar todos nuestros productos</p>
-          <Button 
-            asChild
-            size="lg"
-            className="rounded-full bg-primary hover:bg-primary/90 text-white font-bold px-8"
-          >
-            <a 
-              href="https://cartacoctelsops.my.canva.site/?fbclid=PAY2xjawIBM0BleHRuA2FlbQIxMAABpo07SqMFni5aqLVnII7WNFsKVhxq3eOu2xY8bP-DEYY-UbmWzsnyb0pfyw_aem_9w328MMocFp3VHv0IGkJaA"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Abrir Menú en Canva →
-            </a>
-          </Button>
-        </div>
-      </div>
-
       <div className="flex flex-col md:flex-row gap-6 mb-12 items-center justify-between">
         <div className="flex flex-wrap gap-2 justify-center">
           {categories.map((cat) => (

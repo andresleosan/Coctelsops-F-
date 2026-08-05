@@ -62,18 +62,3 @@
 input, textarea {
   @apply text-sm md:text-base;
 }
-
-/* Ocultar Next.js Dev Overlay */
-[data-nextjs-dev-overlay],
-[data-nextjs-dev-overlay-root],
-.__next_dev_overlay_container,
-.__next-dev-overlay {
-  display: none !important;
-}
-
-/* Ocultar cualquier elemento con clase de overlay flotante */
-[class*="dev-overlay"],
-[class*="DevOverlay"],
-div[role="dialog"][class*="overlay"] {
-  display: none !important;
-}
