@@ -13,6 +13,8 @@ import { useRouter } from 'next/navigation';
 import { CheckCircle2, CreditCard, Wallet, Truck, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
+import { getCheckoutErrorMessage } from '@/lib/checkout/messages';
+import { DEFAULT_STORE_CONFIGURATION, type StoreConfiguration } from '@/types/operations';
 
 export default function CheckoutPage() {
   const { totalPrice, items, clearCart, getCheckoutItems } = useCart();
@@ -20,6 +22,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [configuration, setConfiguration] = useState<StoreConfiguration>(DEFAULT_STORE_CONFIGURATION);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -36,6 +39,14 @@ export default function CheckoutPage() {
       router.replace('/verificar-email');
     }
   }, [authLoading, isVerified, router, user]);
+
+  useEffect(() => {
+    void fetch('/api/configuration').then(async (response) => {
+      if (!response.ok) return;
+      const data = await response.json() as { configuration?: StoreConfiguration };
+      if (data.configuration) setConfiguration(data.configuration);
+    }).catch(() => undefined);
+  }, []);
 
   if (authLoading || !user || !isVerified) {
     return <div className="container mx-auto flex min-h-[50vh] items-center justify-center px-4 text-muted-foreground">Verificando tu acceso...</div>;
@@ -71,13 +82,9 @@ export default function CheckoutPage() {
       }
 
       const body = await response.json().catch(() => ({})) as { error?: string };
-      if (response.status === 401) setSubmitError('Tu sesion expiro. Inicia sesion nuevamente.');
-      else if (response.status === 403) setSubmitError('Verifica tu correo antes de comprar.');
-      else if (response.status === 422) setSubmitError(body.error || 'Revisa los datos del pedido.');
-      else if (response.status === 500) setSubmitError('No pudimos procesar el pedido. Intenta de nuevo.');
-      else setSubmitError('No pudimos procesar el pedido.');
+      setSubmitError(getCheckoutErrorMessage(response.status, body.error, configuration.messages.unavailable));
     } catch {
-      setSubmitError('No pudimos conectar con la central de pedidos.');
+      setSubmitError(getCheckoutErrorMessage(undefined, undefined, configuration.messages.unavailable));
     } finally {
       setIsSubmitting(false);
     }

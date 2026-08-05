@@ -96,3 +96,28 @@ PASS
 npm run build
 PASS: Next.js production build completed
 ```
+
+## Review Fix Round 2
+
+- Order-create audit changes now conditionally include `promotionCode`, so Firestore never receives an undefined field for orders without a promotion. A transaction-level regression test covers the payload.
+- Business hours now require `close` to be strictly later than `open`. Overnight ranges are intentionally unsupported unless an explicit overnight representation is added; equal and inverted ranges are rejected.
+- Checkout loads the validated public configuration and routes 500/network/unavailable failures through `messages.unavailable`, with the fallback default used if configuration cannot be loaded. Server validation details remain visible for 422 responses.
+
+### Round 2 Verification
+
+```text
+npm test -- --run tests/lib/orders-audit.test.ts tests/lib/configuration.test.ts tests/lib/checkout-messages.test.ts
+PASS: 3 files, 5 tests
+
+npm test
+PASS: 30 files, 139 tests
+
+npm run typecheck
+PASS
+
+npm run lint
+PASS with pre-existing warnings only
+
+npm run build
+PASS: Next.js production build completed
+```

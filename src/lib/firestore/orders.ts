@@ -128,7 +128,7 @@ export async function createOrder(user: VerifiedUser, input: CreateOrderInput): 
       transaction.update(promotionReference, { usageCount: currentPromotion.usageCount + 1, updatedAt: new Date().toISOString() });
     }
     transaction.create(reference, orderData);
-    writeAuditInTransaction(transaction, { actorUid: user.uid, action: "create", module: "pedidos", entityId: reference.id, changes: { total: orderData.total, itemCount: orderData.items.length, promotionCode: orderData.promotionCode } });
+    writeAuditInTransaction(transaction, { actorUid: user.uid, action: "create", module: "pedidos", entityId: reference.id, changes: { total: orderData.total, itemCount: orderData.items.length, ...(orderData.promotionCode ? { promotionCode: orderData.promotionCode } : {}) } });
   });
   await createNotification({ audience: "admin", title: "Nuevo pedido", message: `Se recibió el pedido #${reference.id.slice(0, 8)}.`, orderId: reference.id });
 

@@ -13,9 +13,21 @@ const timeSchema = z.string().refine((value) => {
   return match !== null && Number(match[1]) <= 23 && Number(match[2]) <= 59;
 }, "La hora debe estar entre 00:00 y 23:59");
 
+const businessHourSchema = z.object({
+  day: z.string().trim().min(1),
+  open: timeSchema,
+  close: timeSchema,
+  closed: z.boolean().optional(),
+}).superRefine((value, context) => {
+  const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
+  if (toMinutes(value.close) <= toMinutes(value.open)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["close"], message: "La hora de cierre debe ser posterior a la apertura; los turnos nocturnos requieren soporte explícito" });
+  }
+});
+
 export const storeConfigurationSchema = z.object({
   whatsappNumber: z.string().trim().regex(/^\d{10,15}$/, "El WhatsApp debe ser un número internacional"),
-  businessHours: z.array(z.object({ day: z.string().trim().min(1), open: timeSchema, close: timeSchema, closed: z.boolean().optional() })).length(7),
+  businessHours: z.array(businessHourSchema).length(7),
   deliveryZones: z.array(z.string().trim().min(1)).min(1).max(50),
   estimatedDeliveryMinutes: z.number().int().min(1).max(240),
   messages: z.object({ orderReceived: z.string().trim().min(1).max(300), orderStatus: z.string().trim().min(1).max(300), unavailable: z.string().trim().min(1).max(300) }),
