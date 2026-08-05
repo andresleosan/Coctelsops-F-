@@ -4,6 +4,9 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { AuthorizationError } from "@/lib/auth/verify-request";
 import { getProductById } from "@/lib/firestore/products";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { createAuditEntry, writeAuditInTransaction } from "@/lib/firestore/audit";
+import { createNotification } from "@/lib/firestore/notifications";
+import { calculatePromotion, getPromotionByCode } from "@/lib/firestore/promotions";
 import { toCustomerOrder } from "@/lib/orders/customer-order";
 import {
   assertOrderOwnership,
@@ -78,7 +81,19 @@ function requireOrderPermission(user: VerifiedUser, permission: "pedidos.read" |
 export async function createOrder(user: VerifiedUser, input: CreateOrderInput): Promise<Order> {
   const validated = createOrderInputSchema.parse(input);
   const products = await Promise.all(validated.items.map((item) => getProductById(item.productId)));
-  const calculated = calculateOrder(validated, products.filter((product): product is NonNullable<typeof product> => product !== null));
+  const availableProducts = products.filter((product): product is NonNullable<typeof product> => product !== null);
+  const calculated = calculateOrder(validated, availableProducts);
+  let promotionCode: string | undefined;
+  let promotionId: string | undefined;
+  if (validated.promotionCode) {
+    const promotion = await getPromotionByCode(validated.promotionCode);
+    if (!promotion) throw new OrderValidationError("La promoción no es válida");
+    const promotionResult = calculatePromotion({ promotion, subtotal: calculated.subtotal, now: new Date().toISOString(), items: calculated.items.map((item) => ({ productId: item.productId, category: availableProducts.find((product) => product.id === item.productId)?.category ?? "", subtotal: item.subtotal })) });
+    if (!promotionResult.applied) throw new OrderValidationError(`La promoción no es válida: ${promotionResult.reason}`);
+    calculated.total = promotionResult.total;
+    promotionCode = promotion.code;
+    promotionId = promotion.id;
+  }
   const now = new Date().toISOString();
   const data = {
     clienteUid: user.uid,
@@ -94,8 +109,28 @@ export async function createOrder(user: VerifiedUser, input: CreateOrderInput): 
     updatedAt: now,
     statusHistory: [{ status: "pendiente" as const, actorUid: user.uid, at: now }],
     audit: { createdByUid: user.uid, createdAt: now },
+    ...(promotionCode ? { promotionCode } : {}),
   };
-  const reference = await ordersCollection().add(data);
+  const db = getAdminDb();
+  const reference = db.collection("pedidos").doc();
+  await db.runTransaction(async (transaction) => {
+    if (promotionId) {
+      const promotionReference = db.collection("promociones").doc(promotionId);
+      const promotionSnapshot = await transaction.get(promotionReference);
+      const promotionData = (promotionSnapshot.data() ?? {}) as Record<string, unknown>;
+      const usageCount = typeof promotionData.usageCount === "number" ? promotionData.usageCount : 0;
+      const usageLimit = typeof promotionData.usageLimit === "number" ? promotionData.usageLimit : undefined;
+      if (!promotionSnapshot.exists || promotionData.active !== true || (usageLimit !== undefined && usageCount >= usageLimit)) {
+        throw new OrderValidationError("La promoción ya no está disponible");
+      }
+      transaction.update(promotionReference, { usageCount: usageCount + 1, updatedAt: new Date().toISOString() });
+    }
+    transaction.create(reference, data);
+  });
+  await Promise.all([
+    createAuditEntry({ actorUid: user.uid, action: "create", module: "pedidos", entityId: reference.id, changes: { total: data.total, itemCount: data.items.length } }),
+    createNotification({ audience: "admin", title: "Nuevo pedido", message: `Se recibió el pedido #${reference.id.slice(0, 8)}.`, orderId: reference.id }),
+  ]);
 
   return { id: reference.id, ...data };
 }
@@ -156,12 +191,16 @@ export async function updateOrderStatus(user: VerifiedUser, id: string, input: S
     };
     transaction.update(reference, update);
     transaction.create(notification, {
-      clienteUid: current.clienteUid,
+      uid: current.clienteUid,
       orderId: id,
+      audience: "customer",
+      title: "Actualización de pedido",
+      message: `Tu pedido ahora está ${validated.status.replace("_", " ")}.`,
       status: validated.status,
       createdAt: now,
       read: false,
     });
+    writeAuditInTransaction(transaction, { actorUid: user.uid, action: "update", module: "pedidos", entityId: id, changes: { status: validated.status, reason: validated.reason } });
     updated = { ...current, ...update, status: validated.status, updatedAt: now, audit: update.audit };
   });
 

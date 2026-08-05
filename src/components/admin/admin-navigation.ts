@@ -16,9 +16,19 @@ export const ADMIN_NAVIGATION: AdminNavigationItem[] = [
   { href: "/admin/roles", label: "Roles", permission: "roles.read" },
 ];
 
+export const ADVANCED_ADMIN_NAVIGATION: AdminNavigationItem[] = [
+  { href: "/admin/inventario", label: "Inventario", permission: "inventario.read" },
+  { href: "/admin/promociones", label: "Promociones", permission: "promociones.read" },
+  { href: "/admin/reportes", label: "Reportes", permission: "reportes.read" },
+  { href: "/admin/configuracion", label: "Configuración", permission: "configuracion.read" },
+  { href: "/admin/auditoria", label: "Auditoría", permission: "auditoria.read" },
+  { href: "/admin/notificaciones", label: "Notificaciones", permission: "notificaciones.read" },
+];
+
 export function getVisibleAdminNavigation(isAdmin: boolean, permissions: Permission[]): AdminNavigationItem[] {
   if (isAdmin) return ADMIN_NAVIGATION;
-  const assigned = new Set(permissions.filter((permission) => ADMIN_NAVIGATION.some((item) => item.permission === permission)));
+  const navigation = [...ADMIN_NAVIGATION, ...ADVANCED_ADMIN_NAVIGATION];
+  const assigned = new Set(permissions.filter((permission) => navigation.some((item) => item.permission === permission)));
   if (assigned.size === 0) return [];
-  return ADMIN_NAVIGATION.filter((item) => !item.permission || assigned.has(item.permission));
+  return navigation.filter((item) => !item.permission || assigned.has(item.permission));
 }

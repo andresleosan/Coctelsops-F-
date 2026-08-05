@@ -17,7 +17,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (pathname === "/admin/login") return children;
 
-  const requiredPermission: Permission | undefined = pathname.startsWith("/admin/pedidos") ? "pedidos.read" : undefined;
+  const permissionByPath: Array<[string, Permission]> = [
+    ["/admin/pedidos", "pedidos.read"],
+    ["/admin/productos", "productos.read"],
+    ["/admin/categorias", "categorias.read"],
+    ["/admin/clientes", "clientes.read"],
+    ["/admin/usuarios", "usuarios.read"],
+    ["/admin/roles", "roles.read"],
+    ["/admin/inventario", "inventario.read"],
+    ["/admin/promociones", "promociones.read"],
+    ["/admin/reportes", "reportes.read"],
+    ["/admin/configuracion", "configuracion.read"],
+    ["/admin/auditoria", "auditoria.read"],
+    ["/admin/notificaciones", "notificaciones.read"],
+  ];
+  const requiredPermission = permissionByPath.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`))?.[1];
 
   return (
     <AdminGuard permission={requiredPermission}>

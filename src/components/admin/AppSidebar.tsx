@@ -5,12 +5,17 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ClipboardList,
+  Bell,
+  BarChart3,
+  Boxes,
   FolderTree,
   LayoutDashboard,
   LogOut,
   Martini,
   ShieldCheck,
   ShoppingBag,
+  Settings,
+  Tag,
   Users,
   UserCog,
   X,
@@ -20,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { logout } from "@/lib/auth-client";
 import type { Permission } from "@/types/auth";
-import { getVisibleAdminNavigation, ADMIN_NAVIGATION } from "@/components/admin/admin-navigation";
+import { getVisibleAdminNavigation, ADMIN_NAVIGATION, ADVANCED_ADMIN_NAVIGATION } from "@/components/admin/admin-navigation";
 
 type AppSidebarProps = { onNavigate?: () => void };
 
@@ -47,7 +52,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
     return () => { mounted = false; };
   }, [user]);
 
-  const visibleItems = getVisibleAdminNavigation(isAdmin, permissions).map((item) => ({
+  const visibleNavigation = isAdmin ? [...ADMIN_NAVIGATION, ...ADVANCED_ADMIN_NAVIGATION] : getVisibleAdminNavigation(false, permissions);
+  const visibleItems = visibleNavigation.map((item) => ({
     ...item,
     icon: ADMIN_NAVIGATION.find((candidate) => candidate.href === item.href)?.href === "/admin/dashboard"
       ? LayoutDashboard
@@ -59,9 +65,19 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
             ? FolderTree
             : item.href === "/admin/clientes"
               ? Users
-              : item.href === "/admin/usuarios"
-                ? UserCog
-                : ShieldCheck,
+                : item.href === "/admin/usuarios"
+              ? UserCog
+              : item.href === "/admin/inventario"
+                ? Boxes
+                : item.href === "/admin/promociones"
+                  ? Tag
+                  : item.href === "/admin/reportes"
+                    ? BarChart3
+                    : item.href === "/admin/configuracion"
+                      ? Settings
+                      : item.href === "/admin/notificaciones"
+                        ? Bell
+                        : ShieldCheck,
   }));
 
   async function handleLogout() {

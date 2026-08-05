@@ -2,6 +2,7 @@ import "server-only";
 
 import { getAdminDb } from "@/lib/firebase-admin";
 import { AuthorizationError } from "@/lib/auth/verify-request";
+import { createAuditEntry } from "@/lib/firestore/audit";
 import { productInputSchema } from "@/lib/validation/catalog";
 import type { CatalogCaller, CatalogPermission, Product, ProductInput } from "@/types/catalog";
 
@@ -77,6 +78,7 @@ export async function createProduct(input: ProductInput, caller: CatalogCaller, 
   const now = new Date().toISOString();
 
   await reference.set({ ...validated, createdAt: now, updatedAt: now });
+  await createAuditEntry({ actorUid: caller.uid, action: "create", module: "productos", entityId: reference.id, changes: validated });
   return reference.id;
 }
 
@@ -84,11 +86,13 @@ export async function updateProduct(id: string, input: ProductInput, caller: Cat
   requireCatalogPermission(caller, "productos.write");
   const validated = productInputSchema.parse(input);
   await productCollection().doc(id).update({ ...validated, updatedAt: new Date().toISOString() });
+  await createAuditEntry({ actorUid: caller.uid, action: "update", module: "productos", entityId: id, changes: validated });
 }
 
 export async function deleteProduct(id: string, caller: CatalogCaller): Promise<void> {
   requireCatalogPermission(caller, "productos.write");
   await productCollection().doc(id).delete();
+  await createAuditEntry({ actorUid: caller.uid, action: "delete", module: "productos", entityId: id });
 }
 
 export async function seedProduct(input: ProductInput, id: string): Promise<void> {

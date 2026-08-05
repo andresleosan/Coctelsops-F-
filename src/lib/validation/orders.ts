@@ -29,11 +29,7 @@ export const createOrderInputSchema = z.object({
     quantity: z.number().int().min(1).max(50),
     customization: customizationSchema,
   })).min(1, "El carrito no puede estar vacio").max(50),
-  promotionCode: z.string().trim().min(1).max(40).optional(),
-}).superRefine((input, context) => {
-  if (input.promotionCode) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["promotionCode"], message: "La promocion no es valida" });
-  }
+  promotionCode: z.string().trim().min(1).max(40).regex(/^[A-Za-z0-9-]+$/, "El código de promoción no es válido").optional(),
 });
 
 export const statusUpdateSchema = z.object({
