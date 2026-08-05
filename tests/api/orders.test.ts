@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireVerifiedEmail, requirePermission, createOrder, listOrders, listOwnOrders, getCustomerOrder, updateOrderStatus } = vi.hoisted(() => ({
+const { verifyRequest, requireVerifiedEmail, requirePermission, createOrder, listOrders, listOwnOrders, getCustomerOrder, updateOrderStatus, OrderNotFoundError } = vi.hoisted(() => ({
+  verifyRequest: vi.fn(),
   requireVerifiedEmail: vi.fn(),
   requirePermission: vi.fn(),
   createOrder: vi.fn(),
@@ -8,14 +9,16 @@ const { requireVerifiedEmail, requirePermission, createOrder, listOrders, listOw
   listOwnOrders: vi.fn(),
   getCustomerOrder: vi.fn(),
   updateOrderStatus: vi.fn(),
+  OrderNotFoundError: class OrderNotFoundError extends Error {},
 }));
 
 vi.mock("@/lib/auth/verify-request", () => ({
+  verifyRequest,
   requireVerifiedEmail,
   toAuthorizationResponse: (error: Error & { status?: number }) => Response.json({ error: error.message }, { status: error.status ?? 500 }),
 }));
 vi.mock("@/lib/auth/permissions", () => ({ requirePermission }));
-vi.mock("@/lib/firestore/orders", () => ({ createOrder, listOrders, listOwnOrders, getCustomerOrder, updateOrderStatus }));
+vi.mock("@/lib/firestore/orders", () => ({ createOrder, listOrders, listOwnOrders, getCustomerOrder, updateOrderStatus, OrderNotFoundError }));
 
 import { GET as GET_ORDERS, POST } from "@/app/api/pedidos/route";
 import { GET as GET_BY_ID, PATCH as PATCH_BY_ID } from "@/app/api/pedidos/[id]/route";
@@ -23,6 +26,7 @@ import { GET as GET_BY_ID, PATCH as PATCH_BY_ID } from "@/app/api/pedidos/[id]/r
 describe("secure order APIs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    verifyRequest.mockResolvedValue({ uid: "customer-1" });
     requireVerifiedEmail.mockResolvedValue({ uid: "customer-1" });
     requirePermission.mockResolvedValue({ uid: "staff-1", permissions: ["pedidos.update"] });
     createOrder.mockResolvedValue({ id: "pedido-1", clienteUid: "customer-1", total: 11500, status: "pendiente" });
@@ -71,9 +75,22 @@ describe("secure order APIs", () => {
     const response = await GET_ORDERS(new Request("http://localhost/api/pedidos?mine=true"));
 
     expect(response.status).toBe(200);
-    expect(requireVerifiedEmail).toHaveBeenCalledWith(expect.anything());
+    expect(verifyRequest).toHaveBeenCalledWith(expect.anything());
+    expect(requireVerifiedEmail).not.toHaveBeenCalled();
     expect(listOwnOrders).toHaveBeenCalledWith({ uid: "customer-1" });
     expect(listOrders).not.toHaveBeenCalled();
+  });
+
+  it("allows an authenticated but unverified customer to read their order history", async () => {
+    requireVerifiedEmail.mockRejectedValueOnce(Object.assign(new Error("Verifica tu correo"), { status: 403 }));
+
+    const response = await GET_ORDERS(new Request("http://localhost/api/pedidos?mine=true"));
+
+    expect(response.status).toBe(200);
+    expect(verifyRequest).toHaveBeenCalledWith(expect.anything());
+    expect(requireVerifiedEmail).not.toHaveBeenCalled();
+    expect(listOwnOrders).toHaveBeenCalledWith({ uid: "customer-1" });
+    requireVerifiedEmail.mockReset();
   });
 
   it("maps validation failures to 422", async () => {
@@ -95,6 +112,18 @@ describe("secure order APIs", () => {
 
     expect(response.status).toBe(200);
     expect(getCustomerOrder).toHaveBeenCalledWith({ uid: "customer-1" }, "pedido-1");
+  });
+
+  it("allows an authenticated but unverified customer to read their order detail", async () => {
+    requireVerifiedEmail.mockRejectedValueOnce(Object.assign(new Error("Verifica tu correo"), { status: 403 }));
+
+    const response = await GET_BY_ID(new Request("http://localhost/api/pedidos/pedido-1"), { params: Promise.resolve({ id: "pedido-1" }) });
+
+    expect(response.status).toBe(200);
+    expect(verifyRequest).toHaveBeenCalledWith(expect.anything());
+    expect(requireVerifiedEmail).not.toHaveBeenCalled();
+    expect(getCustomerOrder).toHaveBeenCalledWith({ uid: "customer-1" }, "pedido-1");
+    requireVerifiedEmail.mockReset();
   });
 
   it("requires pedidos.update for status changes", async () => {

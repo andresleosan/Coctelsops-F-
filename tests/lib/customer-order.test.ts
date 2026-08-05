@@ -41,4 +41,33 @@ describe("toCustomerOrder", () => {
     ]);
     expect(customerOrder.items[0]).toMatchObject({ name: "Granizado de fresa", unitPrice: 12000 });
   });
+
+  it("preserves a cancellation event timestamp and supplies a legacy fallback", () => {
+    const cancelledOrder: Order = {
+      id: "pedido-cancelado",
+      clienteUid: "customer-1",
+      customerName: "Cliente",
+      phone: "324 555 0000",
+      address: "Carrera 1 # 2-3",
+      items: [],
+      subtotal: 0,
+      total: 0,
+      status: "cancelado",
+      createdAt: "2026-08-04T10:00:00.000Z",
+      updatedAt: "2026-08-04T10:20:00.000Z",
+      audit: { createdByUid: "customer-1", createdAt: "2026-08-04T10:00:00.000Z" },
+      statusHistory: [
+        { status: "pendiente", actorUid: "customer-1", at: "2026-08-04T10:00:00.000Z" },
+        { status: "cancelado", actorUid: "staff-1", at: "2026-08-04T10:20:00.000Z", reason: "Sin cobertura" },
+      ],
+    };
+
+    expect(toCustomerOrder(cancelledOrder).statusHistory).toEqual([
+      { status: "pendiente", at: "2026-08-04T10:00:00.000Z" },
+      { status: "cancelado", at: "2026-08-04T10:20:00.000Z", reason: "Sin cobertura" },
+    ]);
+
+    const legacyOrder = { ...cancelledOrder, statusHistory: undefined };
+    expect(toCustomerOrder(legacyOrder).statusHistory).toEqual([{ status: "cancelado", at: "2026-08-04T10:20:00.000Z" }]);
+  });
 });

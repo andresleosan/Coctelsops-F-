@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { requirePermission } from "@/lib/auth/permissions";
-import { requireVerifiedEmail, toAuthorizationResponse } from "@/lib/auth/verify-request";
+import { toAuthorizationResponse, verifyRequest } from "@/lib/auth/verify-request";
 import { getCustomerOrder, OrderNotFoundError, updateOrderStatus } from "@/lib/firestore/orders";
 import { OrderValidationError, statusUpdateSchema } from "@/lib/validation/orders";
 
@@ -18,7 +18,7 @@ function toOrderResponse(error: unknown): Response {
 
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
   try {
-    const user = await requireVerifiedEmail(request as never);
+    const user = await verifyRequest(request as never);
     const { id } = await context.params;
     return Response.json({ order: await getCustomerOrder(user, id) });
   } catch (error) {

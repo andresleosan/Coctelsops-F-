@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { requirePermission } from "@/lib/auth/permissions";
-import { requireVerifiedEmail, toAuthorizationResponse } from "@/lib/auth/verify-request";
+import { requireVerifiedEmail, toAuthorizationResponse, verifyRequest } from "@/lib/auth/verify-request";
 import { createOrder, listOrders, listOwnOrders } from "@/lib/firestore/orders";
 import { OrderValidationError, createOrderInputSchema } from "@/lib/validation/orders";
 
@@ -27,7 +27,7 @@ export async function POST(request: Request): Promise<Response> {
 export async function GET(request: Request): Promise<Response> {
   try {
     if (new URL(request.url).searchParams.get("mine") === "true") {
-      const user = await requireVerifiedEmail(request as never);
+      const user = await verifyRequest(request as never);
       return Response.json({ orders: await listOwnOrders(user) });
     }
 
