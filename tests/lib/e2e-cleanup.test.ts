@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import * as cleanupModule from "../../scripts/e2e-local-cleanup";
 import { getCleanupSafetyError } from "../e2e/cleanup-safety";
 
 const confirmedCleanup = {
@@ -9,6 +10,10 @@ const confirmedCleanup = {
 };
 
 describe("E2E cleanup safety", () => {
+  it("no expone el rollback transaccional como API de cleanup", () => {
+    expect("rollbackLocalE2EData" in cleanupModule).toBe(false);
+  });
+
   it("refuses cleanup when emulator hosts are absent", () => {
     expect(getCleanupSafetyError(confirmedCleanup)).toContain("FIRESTORE_EMULATOR_HOST");
   });

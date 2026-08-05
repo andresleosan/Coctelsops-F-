@@ -89,8 +89,7 @@ describeWhenReady("estado E2E contra Firebase Emulator", () => {
       expect(users.filter((user) => user.email?.endsWith("@local.test") && user.uid !== unrelatedUser.uid)).toHaveLength(0);
     } finally {
       claimFailure.mockRestore();
-      const localUsers = (await auth.listUsers()).users.filter((user) => user.email?.endsWith("@local.test"));
-      await Promise.all(localUsers.map((user) => auth.deleteUser(user.uid)));
+      await auth.deleteUser(unrelatedUser.uid);
     }
   }, 30_000);
 

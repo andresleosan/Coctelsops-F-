@@ -113,38 +113,6 @@ function uniqueReferences(references: FirebaseFirestore.DocumentReference[]): Fi
   });
 }
 
-function formatRollbackError(error: unknown): string {
-  return error instanceof Error ? error.message : "Error desconocido";
-}
-
-export async function rollbackLocalE2EData(
-  auth: Auth,
-  db: Firestore,
-  createdUserIds: readonly string[],
-  createdResources: readonly LocalE2EResourceRef[],
-): Promise<void> {
-  const failures: string[] = [];
-  const references = createdResources.map((resource) => db.collection(resource.collection).doc(resource.id));
-
-  try {
-    await deleteReferences(db, references);
-  } catch (error) {
-    failures.push(`Firestore: ${formatRollbackError(error)}`);
-  }
-
-  for (const uid of [...new Set(createdUserIds)]) {
-    try {
-      await auth.deleteUser(uid);
-    } catch (error) {
-      failures.push(`Auth ${uid}: ${formatRollbackError(error)}`);
-    }
-  }
-
-  if (failures.length > 0) {
-    throw new Error(`Rollback transaccional incompleto: ${failures.join("; ")}`);
-  }
-}
-
 export async function deleteOwnedLocalE2EData(auth: Auth, db: Firestore, state: LocalE2EState, options: CleanupOptions = {}): Promise<void> {
   if (!isLocalE2EState(state)) {
     throw new Error("El estado E2E no tiene el formato esperado.");

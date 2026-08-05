@@ -2,6 +2,9 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import type { Auth } from "firebase-admin/auth";
+import type { Firestore } from "firebase-admin/firestore";
+
 import { assertLoopbackEmulatorHosts } from "../src/firebase/emulators";
 import { DEFAULT_STORE_CONFIGURATION } from "../src/types/operations";
 import { PRODUCTS } from "../src/app/lib/products";
@@ -84,6 +87,54 @@ function expectedResources(): LocalE2EResources {
     categories: Object.keys(CATEGORY_SEEDS),
     configuration: ["principal"],
   };
+}
+
+async function deleteCreatedReferences(db: Firestore, resources: readonly LocalE2EResourceRef[]): Promise<void> {
+  let batch = db.batch();
+  let pending = 0;
+
+  for (const resource of resources) {
+    batch.delete(db.collection(resource.collection).doc(resource.id));
+    pending += 1;
+    if (pending === 500) {
+      await batch.commit();
+      batch = db.batch();
+      pending = 0;
+    }
+  }
+
+  if (pending > 0) await batch.commit();
+}
+
+function formatRollbackError(error: unknown): string {
+  return error instanceof Error ? error.message : "Error desconocido";
+}
+
+async function rollbackCreatedLocalE2EData(
+  auth: Auth,
+  db: Firestore,
+  createdUserIds: readonly string[],
+  createdResources: readonly LocalE2EResourceRef[],
+): Promise<void> {
+  const failures: string[] = [];
+
+  try {
+    await deleteCreatedReferences(db, createdResources);
+  } catch (error) {
+    failures.push(`Firestore: ${formatRollbackError(error)}`);
+  }
+
+  for (const uid of [...new Set(createdUserIds)]) {
+    try {
+      await auth.deleteUser(uid);
+    } catch (error) {
+      failures.push(`Auth ${uid}: ${formatRollbackError(error)}`);
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Rollback transaccional incompleto: ${failures.join("; ")}`);
+  }
 }
 
 export function getLocalE2EStatePath(environment: Record<string, string | undefined> = process.env): string {
@@ -302,8 +353,7 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
     return state;
   } catch (error) {
     try {
-      const { rollbackLocalE2EData } = await import("./e2e-local-cleanup");
-      await rollbackLocalE2EData(auth, db, createdAuthUserIds, createdResources);
+      await rollbackCreatedLocalE2EData(auth, db, createdAuthUserIds, createdResources);
       if (stateFileCreated) removeLocalE2EStateFile();
     } catch (rollbackError) {
       throw new Error(`Fallo de setup E2E y rollback incompleto: ${rollbackError instanceof Error ? rollbackError.message : "Error desconocido"}`);
