@@ -1,29 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { collection, runTransaction, transactionCreate, getProductById, createNotification } = vi.hoisted(() => ({
+const { collection, runTransaction, transactionCreate, transactionGet, getProductById, productFromData } = vi.hoisted(() => ({
   collection: vi.fn(),
   runTransaction: vi.fn(),
   transactionCreate: vi.fn(),
+  transactionGet: vi.fn(),
   getProductById: vi.fn(),
-  createNotification: vi.fn(),
+  productFromData: vi.fn(),
 }));
 
 const orderReference = { id: "pedido-1" };
 const auditReference = { id: "auditoria-1" };
+const movementReference = { id: "movimiento-1" };
+const notificationReference = { id: "notificacion-1" };
+const productReference = { id: "fresa" };
 
 vi.mock("@/lib/firebase-admin", () => ({ getAdminDb: () => ({ collection, runTransaction }) }));
-vi.mock("@/lib/firestore/products", () => ({ getProductById }));
-vi.mock("@/lib/firestore/notifications", () => ({ createNotification }));
+vi.mock("@/lib/firestore/products", () => ({ getProductById, productFromData }));
 
 import { createOrder } from "@/lib/firestore/orders";
 
 describe("auditoría de creación de pedidos", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    collection.mockImplementation((name: string) => name === "pedidos" ? { doc: () => orderReference } : { doc: () => auditReference });
-    runTransaction.mockImplementation(async (callback: (transaction: unknown) => Promise<unknown>) => callback({ create: transactionCreate, update: vi.fn(), get: vi.fn() }));
-    getProductById.mockResolvedValue({ id: "fresa", name: "Fresa", description: "", price: 10000, image: "https://picsum.photos/seed/fresa/600/600", category: "granizado", availableFlavors: [], availableAddOns: [], stock: 10, active: true, featured: false });
-    createNotification.mockResolvedValue("notification-1");
+    collection.mockImplementation((name: string) => ({
+      doc: () => name === "pedidos" ? orderReference : name === "auditoria" ? auditReference : name === "inventario_movimientos" ? movementReference : name === "notificaciones" ? notificationReference : productReference,
+    }));
+    const product = { id: "fresa", name: "Fresa", description: "", price: 10000, image: "https://picsum.photos/seed/fresa/600/600", category: "granizado", availableFlavors: [], availableAddOns: [], stock: 10, active: true, featured: false };
+    transactionGet.mockImplementation(async (reference: { id: string }) => reference === orderReference ? { exists: false } : { exists: true, data: () => product });
+    runTransaction.mockImplementation(async (callback: (transaction: unknown) => Promise<unknown>) => callback({ create: transactionCreate, update: vi.fn(), get: transactionGet }));
+    getProductById.mockResolvedValue(product);
+    productFromData.mockReturnValue(product);
   });
 
   it("no escribe promotionCode undefined en la auditoría sin promoción", async () => {

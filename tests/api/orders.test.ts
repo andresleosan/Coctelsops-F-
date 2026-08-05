@@ -39,7 +39,7 @@ describe("secure order APIs", () => {
   it("requires verified email and never passes client ownership or totals to the domain", async () => {
     const response = await POST(new Request("http://localhost/api/pedidos", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "idempotency-key": "checkout-test-1" },
       body: JSON.stringify({
         customerName: "Ana Perez",
         phone: "324 555 0000",
@@ -53,7 +53,7 @@ describe("secure order APIs", () => {
 
     expect(response.status).toBe(201);
     expect(requireVerifiedEmail).toHaveBeenCalled();
-    expect(createOrder).toHaveBeenCalledWith({ uid: "customer-1" }, expect.objectContaining({ items: [expect.objectContaining({ productId: "fresa" })] }));
+    expect(createOrder).toHaveBeenCalledWith({ uid: "customer-1" }, expect.objectContaining({ items: [expect.objectContaining({ productId: "fresa" })] }), { idempotencyKey: "checkout-test-1" });
     expect(createOrder.mock.calls[0][1]).not.toHaveProperty("total");
     expect(createOrder.mock.calls[0][1]).not.toHaveProperty("clienteUid");
     expect(createOrder.mock.calls[0][1]).not.toHaveProperty("status");

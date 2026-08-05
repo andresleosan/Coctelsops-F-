@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCart } from '@/context/cart-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const idempotencyKey = useRef<string | null>(null);
   const [configuration, setConfiguration] = useState<StoreConfiguration>(DEFAULT_STORE_CONFIGURATION);
   const [formData, setFormData] = useState({
     name: '',
@@ -61,9 +62,10 @@ export default function CheckoutPage() {
 
     try {
       const token = await user.getIdToken();
+      idempotencyKey.current ??= crypto.randomUUID();
       const response = await fetch('/api/pedidos', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}`, 'idempotency-key': idempotencyKey.current },
         body: JSON.stringify({
           customerName: formData.name,
           phone: formData.phone,
@@ -82,6 +84,7 @@ export default function CheckoutPage() {
       }
 
       const body = await response.json().catch(() => ({})) as { error?: string };
+      idempotencyKey.current = null;
       setSubmitError(getCheckoutErrorMessage(response.status, body.error, configuration.messages.unavailable));
     } catch {
       setSubmitError(getCheckoutErrorMessage(undefined, undefined, configuration.messages.unavailable));

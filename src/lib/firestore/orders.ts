@@ -1,11 +1,12 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { hasPermission } from "@/lib/auth/permissions";
 import { AuthorizationError } from "@/lib/auth/verify-request";
-import { getProductById } from "@/lib/firestore/products";
+import { getProductById, productFromData } from "@/lib/firestore/products";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { writeAuditInTransaction } from "@/lib/firestore/audit";
-import { createNotification } from "@/lib/firestore/notifications";
 import { calculatePromotion, getPromotionByCode, toPromotion } from "@/lib/firestore/promotions";
 import { toCustomerOrder } from "@/lib/orders/customer-order";
 import {
@@ -26,6 +27,16 @@ export class OrderNotFoundError extends Error {
     super("Pedido no encontrado");
     this.name = "OrderNotFoundError";
   }
+}
+
+export type OrderCreationOptions = { idempotencyKey?: string };
+
+function stableOrderId(uid: string, idempotencyKey: string): string {
+  return createHash("sha256").update(`${uid}:${idempotencyKey}`).digest("hex").slice(0, 32);
+}
+
+function orderFingerprint(input: CreateOrderInput): string {
+  return createHash("sha256").update(JSON.stringify(input)).digest("hex");
 }
 
 function ordersCollection() {
@@ -78,8 +89,12 @@ function requireOrderPermission(user: VerifiedUser, permission: "pedidos.read" |
   }
 }
 
-export async function createOrder(user: VerifiedUser, input: CreateOrderInput): Promise<Order> {
+export async function createOrder(user: VerifiedUser, input: CreateOrderInput, options: OrderCreationOptions = {}): Promise<Order> {
   const validated = createOrderInputSchema.parse(input);
+  const idempotencyKey = options.idempotencyKey?.trim();
+  if (idempotencyKey && (idempotencyKey.length < 8 || idempotencyKey.length > 200)) {
+    throw new OrderValidationError("La clave de idempotencia no es válida");
+  }
   const products = await Promise.all(validated.items.map((item) => getProductById(item.productId)));
   const availableProducts = products.filter((product): product is NonNullable<typeof product> => product !== null);
   const calculated = calculateOrder(validated, availableProducts);
@@ -110,29 +125,77 @@ export async function createOrder(user: VerifiedUser, input: CreateOrderInput): 
     statusHistory: [{ status: "pendiente" as const, actorUid: user.uid, at: now }],
     audit: { createdByUid: user.uid, createdAt: now },
     ...(promotionCode ? { promotionCode } : {}),
+    ...(idempotencyKey ? { idempotencyKey, requestFingerprint: orderFingerprint(validated) } : {}),
   };
   const db = getAdminDb();
-  const reference = db.collection("pedidos").doc();
-  const promotionItems = calculated.items.map((item) => ({ productId: item.productId, category: availableProducts.find((product) => product.id === item.productId)?.category ?? "", subtotal: item.subtotal }));
+  const reference = idempotencyKey
+    ? db.collection("pedidos").doc(stableOrderId(user.uid, idempotencyKey))
+    : db.collection("pedidos").doc();
+  const notificationReference = db.collection("notificaciones").doc();
+  const productReferences = new Map(
+    [...new Set(validated.items.map((item) => item.productId))].map((productId) => [productId, db.collection("productos").doc(productId)]),
+  );
   let orderData = data;
   await db.runTransaction(async (transaction) => {
+    const existingOrder = await transaction.get(reference);
+    if (existingOrder.exists) {
+      const existingData = (existingOrder.data() ?? {}) as Record<string, unknown>;
+      if (idempotencyKey && existingData.requestFingerprint && existingData.requestFingerprint !== orderFingerprint(validated)) {
+        throw new OrderValidationError("La clave de idempotencia ya fue usada con otros datos");
+      }
+      orderData = existingData as typeof data;
+      return;
+    }
+
+    const productSnapshots = await Promise.all([...productReferences.entries()].map(async ([productId, productReference]) => ({
+      productId,
+      snapshot: await transaction.get(productReference),
+    })));
+    const transactionProducts = productSnapshots.map(({ productId, snapshot }) => snapshot.exists
+      ? productFromData(productId, (snapshot.data() ?? {}) as Record<string, unknown>)
+      : null).filter((product): product is NonNullable<typeof product> => product !== null);
+    const transactionCalculated = calculateOrder(validated, transactionProducts);
+    let transactionTotal = transactionCalculated.total;
     if (promotionId) {
       const promotionReference = db.collection("promociones").doc(promotionId);
       const promotionSnapshot = await transaction.get(promotionReference);
       if (!promotionSnapshot.exists) throw new OrderValidationError("La promoción ya no está disponible");
       const currentPromotion = toPromotion(promotionId, promotionSnapshot.data() as Record<string, unknown>);
       if (currentPromotion.code !== validated.promotionCode?.toUpperCase()) throw new OrderValidationError("La promoción ya no está disponible");
-      const currentResult = calculatePromotion({ promotion: currentPromotion, subtotal: calculated.subtotal, now: new Date().toISOString(), items: promotionItems });
+      const promotionItems = transactionCalculated.items.map((item) => ({ productId: item.productId, category: transactionProducts.find((product) => product.id === item.productId)?.category ?? "", subtotal: item.subtotal }));
+      const currentResult = calculatePromotion({ promotion: currentPromotion, subtotal: transactionCalculated.subtotal, now: new Date().toISOString(), items: promotionItems });
       if (!currentResult.applied) throw new OrderValidationError(`La promoción ya no es válida: ${currentResult.reason}`);
-      orderData = { ...data, total: currentResult.total, promotionCode: currentPromotion.code };
+      transactionTotal = currentResult.total;
       transaction.update(promotionReference, { usageCount: currentPromotion.usageCount + 1, updatedAt: new Date().toISOString() });
     }
+
+    const transactionNow = new Date().toISOString();
+    orderData = {
+      ...data,
+      items: transactionCalculated.items,
+      subtotal: transactionCalculated.subtotal,
+      total: transactionTotal,
+      createdAt: transactionNow,
+      updatedAt: transactionNow,
+      statusHistory: [{ status: "pendiente" as const, actorUid: user.uid, at: transactionNow }],
+      audit: { createdByUid: user.uid, createdAt: transactionNow },
+    };
+    for (const [productId, productReference] of productReferences) {
+      const product = transactionProducts.find((candidate) => candidate.id === productId);
+      if (!product) throw new OrderValidationError("Producto no encontrado");
+      const quantity = validated.items.filter((item) => item.productId === productId).reduce((sum, item) => sum + item.quantity, 0);
+      const resultingStock = product.stock - quantity;
+      const movementReference = db.collection("inventario_movimientos").doc();
+      transaction.update(productReference, { stock: resultingStock, available: resultingStock > 0, updatedAt: transactionNow });
+      transaction.create(movementReference, { productId, type: "salida", quantity, reason: `Pedido ${reference.id}`, actorUid: user.uid, orderId: reference.id, previousStock: product.stock, resultingStock, createdAt: transactionNow });
+      writeAuditInTransaction(transaction, { actorUid: user.uid, action: "create", module: "inventario", entityId: productId, changes: { type: "salida", quantity, reason: `Pedido ${reference.id}`, previousStock: product.stock, resultingStock } });
+    }
     transaction.create(reference, orderData);
+    transaction.create(notificationReference, { audience: "admin", title: "Nuevo pedido", message: `Se recibió el pedido #${reference.id.slice(0, 8)}.`, orderId: reference.id, read: false, createdAt: transactionNow });
     writeAuditInTransaction(transaction, { actorUid: user.uid, action: "create", module: "pedidos", entityId: reference.id, changes: { total: orderData.total, itemCount: orderData.items.length, ...(orderData.promotionCode ? { promotionCode: orderData.promotionCode } : {}) } });
   });
-  await createNotification({ audience: "admin", title: "Nuevo pedido", message: `Se recibió el pedido #${reference.id.slice(0, 8)}.`, orderId: reference.id });
 
-  return { id: reference.id, ...orderData };
+  return { id: reference.id, ...orderData } as Order;
 }
 
 export async function listOrders(user: VerifiedUser): Promise<Order[]> {

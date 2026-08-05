@@ -6,10 +6,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return signedIn() && request.auth.token.admin == true;
-    }
-
     function ownsUser(uid) {
       return signedIn() && request.auth.uid == uid;
     }
@@ -52,50 +48,50 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if isAdmin() || ownsUser(uid);
+      allow read: if ownsUser(uid);
       allow create: if false;
-      allow update: if isAdmin() || (ownsUser(uid)
+      allow update: if ownsUser(uid)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'displayName', 'photoURL', 'telefono', 'addresses'
         ])
         && (request.resource.data.displayName is string || request.resource.data.displayName == null)
         && (request.resource.data.photoURL is string || request.resource.data.photoURL == null)
         && (request.resource.data.telefono is string || request.resource.data.telefono == null)
-        && validAddresses(request.resource.data.addresses));
+        && validAddresses(request.resource.data.addresses);
       allow delete: if false;
     }
 
     match /roles/{roleId} {
-      allow read, write: if isAdmin();
+      allow read, write: if false;
     }
 
     match /pedidos/{orderId} {
-      allow read: if isAdmin() || ownsOrder();
-      allow create, delete: if false;
-      allow update: if isAdmin()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'updatedAt', 'statusHistory', 'audit'
-        ])
-        && validOrderStatus(request.resource.data.status);
+      allow read: if ownsOrder();
+      allow create, update, delete: if false;
     }
 
     match /orders/{orderId} {
-      allow read: if isAdmin() || ownsOrder();
+      allow read: if ownsOrder();
       allow create, update, delete: if false;
     }
 
     match /productos/{productId} {
-      allow read: if resource.data.active == true || isAdmin();
-      allow write: if isAdmin();
+      allow read: if resource.data.active == true;
+      allow write: if false;
     }
 
     match /categorias/{categoryId} {
-      allow read: if resource.data.active == true || isAdmin();
-      allow write: if isAdmin();
+      allow read: if resource.data.active == true;
+      allow write: if false;
     }
 
     match /auditoria/{auditId} {
-      allow read, write: if isAdmin();
+      allow read, write: if false;
+    }
+
+    match /notificaciones/{notificationId} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
     }
 
     match /{document=**} {

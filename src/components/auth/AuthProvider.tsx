@@ -74,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (mounted && isCurrentAuthSession(sessionVersion.current, callbackVersion) && currentUser.current === nextUser) {
             setIsAdmin(esClaimAdmin(token.claims));
             setLoading(false);
+            void syncUserProfile(token.token, () => mounted && isCurrentAuthSession(sessionVersion.current, callbackVersion) && currentUser.current === nextUser);
           }
         })
         .catch(() => {
@@ -97,6 +98,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+async function syncUserProfile(idToken: string, isCurrent: () => boolean): Promise<void> {
+  if (!isCurrent()) return;
+
+  try {
+    await fetch('/api/auth/sync', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+  } catch {
+    // Profile sync must not prevent the authenticated storefront from rendering.
+  }
 }
 
 export function useAuthContext(): AuthContextValue {

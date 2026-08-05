@@ -17,7 +17,9 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const user = await requireVerifiedEmail(request as never);
     const input = createOrderInputSchema.parse(await request.json());
-    const order = await createOrder(user, input);
+    const idempotencyKey = request.headers.get("idempotency-key")?.trim();
+    if (!idempotencyKey) throw new OrderValidationError("Falta la clave de idempotencia del pedido");
+    const order = await createOrder(user, input, { idempotencyKey });
     return Response.json({ order }, { status: 201 });
   } catch (error) {
     return toOrderResponse(error);

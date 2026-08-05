@@ -29,6 +29,15 @@ export function AuthStatus({ mobileMenu = false }: { mobileMenu?: boolean }) {
     );
   }
 
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   if (mobileMenu) {
     return (
       <div className="flex flex-col gap-3 border-t border-border pt-4">
@@ -42,6 +51,10 @@ export function AuthStatus({ mobileMenu = false }: { mobileMenu?: boolean }) {
             Panel de administración
           </Link>
         )}
+        <Button variant="ghost" size="sm" className="justify-start gap-2 px-0 text-sm font-medium" disabled={isLoggingOut} onClick={handleLogout}>
+          <LogOut className="h-5 w-5" />
+          Cerrar sesión
+        </Button>
       </div>
     );
   }
@@ -65,14 +78,7 @@ export function AuthStatus({ mobileMenu = false }: { mobileMenu?: boolean }) {
         variant="ghost"
         size="icon"
         disabled={isLoggingOut}
-        onClick={async () => {
-          setIsLoggingOut(true);
-          try {
-            await logout();
-          } finally {
-            setIsLoggingOut(false);
-          }
-        }}
+        onClick={handleLogout}
         title="Cerrar sesión"
         aria-label="Cerrar sesión"
       >

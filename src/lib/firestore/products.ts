@@ -22,7 +22,7 @@ function requireCatalogPermission(caller: CatalogCaller | undefined, permission:
   }
 }
 
-function toProduct(id: string, data: Record<string, unknown>): Product {
+export function productFromData(id: string, data: Record<string, unknown>): Product {
   const input = productInputSchema.parse({
     name: data.name,
     description: data.description,
@@ -37,6 +37,10 @@ function toProduct(id: string, data: Record<string, unknown>): Product {
   });
 
   return { id, ...input };
+}
+
+function toProduct(id: string, data: Record<string, unknown>): Product {
+  return productFromData(id, data);
 }
 
 async function listProducts(options: InternalProductReadOptions = {}): Promise<Product[]> {
