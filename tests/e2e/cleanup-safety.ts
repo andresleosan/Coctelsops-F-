@@ -1,7 +1,11 @@
 type CleanupEnvironment = Record<string, string | undefined>;
 
 function isLoopbackEmulatorHost(value: string | undefined): boolean {
-  return /^(?:localhost|127\.0\.0\.1):(?:[1-9]\d{0,4})$/.test(value?.trim() ?? "");
+  const match = /^(localhost|127\.0\.0\.1):(\d+)$/.exec(value?.trim() ?? "");
+  if (!match) return false;
+
+  const port = Number.parseInt(match[2], 10);
+  return Number.isInteger(port) && port >= 1 && port <= 65_535;
 }
 
 export function getCleanupSafetyError(environment: CleanupEnvironment): string | undefined {

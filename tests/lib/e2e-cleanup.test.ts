@@ -26,6 +26,14 @@ describe("E2E cleanup safety", () => {
     })).toContain("loopback");
   });
 
+  it("refuses cleanup when a loopback host uses an invalid port", () => {
+    expect(getCleanupSafetyError({
+      ...confirmedCleanup,
+      FIRESTORE_EMULATOR_HOST: "localhost:70000",
+      FIREBASE_AUTH_EMULATOR_HOST: "localhost:9099",
+    })).toContain("loopback");
+  });
+
   it("requires an explicit cleanup confirmation", () => {
     expect(getCleanupSafetyError({
       ...confirmedCleanup,

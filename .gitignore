@@ -48,3 +48,5 @@ firestore-debug.log
 
 # estado temporal de pruebas E2E locales
 /.tmp/e2e/
+/qa/reports/
+/qa/test-results/

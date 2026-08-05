@@ -4,15 +4,17 @@ import { getFirestore } from "firebase-admin/firestore";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 import { getCleanupSafetyError } from "./cleanup-safety";
+import { loadLocalE2EState } from "./local-state";
 
-const baseURL = process.env.E2E_BASE_URL;
-const customerEmail = process.env.E2E_CUSTOMER_EMAIL;
-const customerPassword = process.env.E2E_CUSTOMER_PASSWORD;
-const staffEmail = process.env.E2E_STAFF_EMAIL;
-const staffPassword = process.env.E2E_STAFF_PASSWORD;
-const adminEmail = process.env.E2E_ADMIN_EMAIL;
-const adminPassword = process.env.E2E_ADMIN_PASSWORD;
-const registrationDomain = process.env.E2E_REGISTRATION_DOMAIN;
+const localE2EState = loadLocalE2EState();
+const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:9002";
+const customerEmail = process.env.E2E_CUSTOMER_EMAIL ?? localE2EState?.customer.email;
+const customerPassword = process.env.E2E_CUSTOMER_PASSWORD ?? localE2EState?.customer.password;
+const staffEmail = process.env.E2E_STAFF_EMAIL ?? localE2EState?.staff.email;
+const staffPassword = process.env.E2E_STAFF_PASSWORD ?? localE2EState?.staff.password;
+const adminEmail = process.env.E2E_ADMIN_EMAIL ?? localE2EState?.admin.email;
+const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? localE2EState?.admin.password;
+const registrationDomain = process.env.E2E_REGISTRATION_DOMAIN ?? (localE2EState ? "local.test" : undefined);
 
 type CleanupState = {
   orderIds: string[];
@@ -60,8 +62,7 @@ async function cleanupE2EState(state: CleanupState): Promise<void> {
 }
 
 test.describe("auth, checkout y operaciones administrativas", () => {
-  test.skip(!baseURL, "Define E2E_BASE_URL para ejecutar la suite contra una aplicación desplegada localmente.");
-  test.use({ baseURL: baseURL ?? "http://127.0.0.1:9002" });
+  test.use({ baseURL });
 
   async function login(page: Page, email: string, password: string, path: string) {
     await page.goto(`/login?redirect=${encodeURIComponent(path)}`);

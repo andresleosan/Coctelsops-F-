@@ -11,6 +11,7 @@
     "lint": "eslint . --ignore-pattern next-env.d.ts --max-warnings=0",
     "test": "vitest run --exclude tests/e2e/**",
     "test:e2e": "playwright test tests/e2e",
+    "test:e2e:local": "npx tsx scripts/e2e-local-runner.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
