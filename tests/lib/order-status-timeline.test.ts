@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getOrderTimeline } from "@/lib/orders/status-timeline";
+import { getOrderTimeline, isTimelineConnectorComplete } from "@/lib/orders/status-timeline";
 import type { CustomerOrder } from "@/types/orders";
 
 const cancelledOrder: CustomerOrder = {
@@ -39,5 +39,20 @@ describe("getOrderTimeline", () => {
 
     expect(timeline.at(-1)).toEqual(expect.objectContaining({ status: "cancelado", at: "2026-08-04T10:20:00.000Z" }));
     expect(timeline.filter((event) => event.complete)).toHaveLength(0);
+  });
+
+  it("does not complete the connector after the last completed non-terminal state", () => {
+    const timeline = getOrderTimeline({
+      ...cancelledOrder,
+      status: "confirmado",
+      statusHistory: [
+        { status: "pendiente", at: "2026-08-04T10:00:00.000Z" },
+        { status: "confirmado", at: "2026-08-04T10:10:00.000Z" },
+      ],
+    });
+    const confirmedIndex = timeline.findIndex((event) => event.status === "confirmado");
+
+    expect(isTimelineConnectorComplete(timeline[confirmedIndex], timeline[confirmedIndex + 1])).toBe(false);
+    expect(isTimelineConnectorComplete(timeline[confirmedIndex - 1], timeline[confirmedIndex])).toBe(true);
   });
 });

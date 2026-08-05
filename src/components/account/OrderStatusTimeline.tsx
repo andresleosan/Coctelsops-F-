@@ -1,6 +1,6 @@
 import { Check, Circle, XCircle } from 'lucide-react';
 
-import { getOrderTimeline } from '@/lib/orders/status-timeline';
+import { getOrderTimeline, isTimelineConnectorComplete } from '@/lib/orders/status-timeline';
 import type { CustomerOrder } from '@/types/orders';
 
 function formatDate(value: string): string {
@@ -17,7 +17,7 @@ export function OrderStatusTimeline({ order }: { order: CustomerOrder }) {
         const cancellation = event.status === 'cancelado';
         return (
           <div key={event.status} className="relative flex gap-3 pl-1">
-            {index < timeline.length - 1 && <span className={`absolute left-[11px] top-7 h-[calc(100%+1rem)] w-px ${event.complete ? 'bg-primary/70' : 'bg-border'}`} aria-hidden="true" />}
+            {index < timeline.length - 1 && <span className={`absolute left-[11px] top-7 h-[calc(100%+1rem)] w-px ${isTimelineConnectorComplete(event, timeline[index + 1]) ? 'bg-primary/70' : 'bg-border'}`} aria-hidden="true" />}
             <span className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${cancellation ? 'border-destructive bg-destructive text-destructive-foreground' : event.complete ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-muted-foreground'}`}>
               {cancellation ? <XCircle className="h-3.5 w-3.5" /> : event.complete ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-2.5 w-2.5" />}
             </span>

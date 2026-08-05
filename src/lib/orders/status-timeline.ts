@@ -17,6 +17,10 @@ export type OrderTimelineEvent = {
   reason?: string;
 };
 
+export function isTimelineConnectorComplete(current?: OrderTimelineEvent, next?: OrderTimelineEvent): boolean {
+  return current?.complete === true && next?.complete === true;
+}
+
 export function getOrderTimeline(order: CustomerOrder): OrderTimelineEvent[] {
   const history = order.statusHistory ?? [];
   const historyByStatus = new Map(history.map((event) => [event.status, event]));
