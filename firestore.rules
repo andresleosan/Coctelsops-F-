@@ -18,6 +18,10 @@ service cloud.firestore {
       return signedIn() && resource.data.clienteUid == request.auth.uid;
     }
 
+    function validOrderStatus(status) {
+      return status in ['pendiente', 'confirmado', 'preparando', 'en_camino', 'entregado', 'cancelado'];
+    }
+
     function validAddress(address) {
       return address is map
         && address.keys().hasAll(['id', 'alias', 'recipientName', 'phone', 'address', 'neighborhood', 'city'])
@@ -67,7 +71,12 @@ service cloud.firestore {
 
     match /pedidos/{orderId} {
       allow read: if isAdmin() || ownsOrder();
-      allow create, update, delete: if false;
+      allow create, delete: if false;
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'updatedAt', 'statusHistory', 'audit'
+        ])
+        && validOrderStatus(request.resource.data.status);
     }
 
     match /orders/{orderId} {

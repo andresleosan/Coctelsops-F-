@@ -74,6 +74,8 @@ export type Order = {
   audit: OrderAudit;
   statusHistory?: OrderStatusHistoryEntry[];
   promotionCode?: string;
+  legacy?: boolean;
+  historical?: boolean;
 };
 
 export type CustomerStatusHistoryEntry = Pick<OrderStatusHistoryEntry, "status" | "at" | "reason">;
