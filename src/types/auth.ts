@@ -30,6 +30,8 @@ export type UserProfile = {
   lastLoginAt: DateValue;
 };
 
+export type CustomerProfile = Pick<UserProfile, "uid" | "email" | "displayName" | "photoURL" | "telefono" | "addresses">;
+
 export type Role = {
   id: string;
   name: string;

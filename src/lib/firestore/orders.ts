@@ -4,6 +4,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { AuthorizationError } from "@/lib/auth/verify-request";
 import { getProductById } from "@/lib/firestore/products";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { toCustomerOrder } from "@/lib/orders/customer-order";
 import {
   assertOrderOwnership,
   assertValidTransition,
@@ -13,7 +14,7 @@ import {
   statusUpdateSchema,
 } from "@/lib/validation/orders";
 import type { VerifiedUser } from "@/types/auth";
-import type { CreateOrderInput, Order, OrderStatus, StatusUpdate } from "@/types/orders";
+import type { CreateOrderInput, Order, OrderStatus, OrderStatusHistoryEntry, StatusUpdate, CustomerOrder } from "@/types/orders";
 
 export class OrderNotFoundError extends Error {
   readonly status = 404;
@@ -35,6 +36,20 @@ function isOrderStatus(value: unknown): value is OrderStatus {
 function toOrder(id: string, data: Record<string, unknown>): Order {
   if (!isOrderStatus(data.status)) throw new OrderValidationError("El estado del pedido no es valido");
   const status = data.status;
+  const statusHistory = Array.isArray(data.statusHistory)
+    ? data.statusHistory.flatMap((entry): OrderStatusHistoryEntry[] => {
+      if (!entry || typeof entry !== "object") return [];
+      const event = entry as Record<string, unknown>;
+      if (!isOrderStatus(event.status) || typeof event.at !== "string") return [];
+      return [{
+        status: event.status,
+        at: event.at,
+        ...(typeof event.actorUid === "string" ? { actorUid: event.actorUid } : {}),
+        ...(typeof event.reason === "string" ? { reason: event.reason } : {}),
+      }];
+    })
+    : undefined;
+
   return {
     id,
     clienteUid: String(data.clienteUid ?? ""),
@@ -49,6 +64,7 @@ function toOrder(id: string, data: Record<string, unknown>): Order {
     createdAt: String(data.createdAt ?? ""),
     updatedAt: String(data.updatedAt ?? data.createdAt ?? ""),
     audit: (data.audit ?? {}) as Order["audit"],
+    ...(statusHistory?.length ? { statusHistory } : {}),
     promotionCode: typeof data.promotionCode === "string" ? data.promotionCode : undefined,
   };
 }
@@ -90,13 +106,22 @@ export async function listOrders(user: VerifiedUser): Promise<Order[]> {
   return snapshot.docs.map((document) => toOrder(document.id, (document.data() ?? {}) as Record<string, unknown>));
 }
 
-export async function getCustomerOrder(user: VerifiedUser, id: string): Promise<Order> {
+export async function listOwnOrders(user: VerifiedUser): Promise<CustomerOrder[]> {
+  const snapshot = await ordersCollection()
+    .where("clienteUid", "==", user.uid)
+    .orderBy("createdAt", "desc")
+    .limit(50)
+    .get();
+  return snapshot.docs.map((document) => toCustomerOrder(toOrder(document.id, (document.data() ?? {}) as Record<string, unknown>)));
+}
+
+export async function getCustomerOrder(user: VerifiedUser, id: string): Promise<CustomerOrder> {
   if (!id.trim()) throw new OrderNotFoundError();
   const snapshot = await ordersCollection().doc(id).get();
   if (!snapshot.exists) throw new OrderNotFoundError();
   const order = toOrder(snapshot.id, (snapshot.data() ?? {}) as Record<string, unknown>);
   assertOrderOwnership(user, order.clienteUid);
-  return order;
+  return toCustomerOrder(order);
 }
 
 export async function updateOrderStatus(user: VerifiedUser, id: string, input: StatusUpdate): Promise<Order> {
@@ -114,10 +139,11 @@ export async function updateOrderStatus(user: VerifiedUser, id: string, input: S
     assertValidTransition(current.status, validated.status);
     const now = new Date().toISOString();
     const statusEvent = { status: validated.status, actorUid: user.uid, at: now, ...(validated.reason ? { reason: validated.reason } : {}) };
+    const statusHistory: OrderStatusHistoryEntry[] = [...(current.statusHistory ?? []), statusEvent];
     const update = {
       status: validated.status,
       updatedAt: now,
-      statusHistory: [...((snapshot.data()?.statusHistory as unknown[]) ?? []), statusEvent],
+      statusHistory,
       audit: { ...current.audit, updatedByUid: user.uid, updatedAt: now },
     };
     transaction.update(reference, update);

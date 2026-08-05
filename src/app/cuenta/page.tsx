@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { UserRound, MailCheck, MailWarning } from 'lucide-react';
+import { ArrowRight, ClipboardList, MailCheck, MailWarning, UserRound } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,24 +10,15 @@ import { useAuth } from '@/hooks/use-auth';
 export default function AccountPage() {
   const { user, loading, isVerified } = useAuth();
 
-  if (loading) {
-    return <main className="container mx-auto flex min-h-[50vh] items-center justify-center px-4 text-muted-foreground">Cargando tu cuenta...</main>;
-  }
-
-  if (!user) {
-    return (
-      <main className="container mx-auto flex min-h-[50vh] items-center justify-center px-4 text-center">
-        <div className="space-y-4"><h1 className="text-2xl font-bold text-primary">Inicia sesión para ver tu cuenta</h1><Button asChild><Link href="/login">Ir a ingresar</Link></Button></div>
-      </main>
-    );
-  }
+  if (loading || !user) return null;
 
   return (
-    <main className="container mx-auto max-w-3xl px-4 py-10 md:py-16">
-      <div className="mb-8 space-y-2"><p className="text-xs font-bold uppercase tracking-[0.25em] text-accent">Tu espacio OPS</p><h1 className="font-headline text-4xl font-bold uppercase tracking-tight text-primary neon-text-magenta">Mi cuenta</h1></div>
-      <Card className="border-primary/20 bg-card/80 shadow-2xl shadow-primary/10">
-        <CardHeader><CardTitle className="flex items-center gap-3"><UserRound className="h-6 w-6 text-primary" /> Datos de acceso</CardTitle></CardHeader>
-        <CardContent className="space-y-5">
+    <div className="space-y-5">
+      <Card className="overflow-hidden border-primary/20 bg-card/80 shadow-2xl shadow-primary/10">
+        <CardHeader className="border-b border-border/70 bg-primary/[0.04]">
+          <CardTitle className="flex items-center gap-3 text-lg"><UserRound className="h-5 w-5 text-primary" /> Datos de acceso</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5 p-5 md:p-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <div><p className="text-xs uppercase tracking-widest text-muted-foreground">Nombre</p><p className="mt-1 font-semibold">{user.displayName || 'Sin nombre'}</p></div>
             <div><p className="text-xs uppercase tracking-widest text-muted-foreground">Correo</p><p className="mt-1 break-all font-semibold">{user.email}</p></div>
@@ -36,10 +27,24 @@ export default function AccountPage() {
             {isVerified ? <MailCheck className="h-5 w-5 shrink-0" /> : <MailWarning className="h-5 w-5 shrink-0" />}
             {isVerified ? 'Correo verificado. Ya puedes hacer pedidos.' : 'Verifica tu correo para hacer pedidos.'}
           </div>
-          {!isVerified && <Button asChild><Link href="/verificar-email">Verificar correo</Link></Button>}
-          <Button variant="outline" asChild><Link href="/menu">Explorar el menú</Link></Button>
+          <div className="flex flex-wrap gap-3">
+            {!isVerified && <Button asChild><Link href="/verificar-email">Verificar correo</Link></Button>}
+            <Button variant="outline" asChild><Link href="/menu">Explorar el menú</Link></Button>
+          </div>
         </CardContent>
       </Card>
-    </main>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Link href="/cuenta/perfil" className="group rounded-2xl border border-accent/20 bg-card/60 p-5 transition-colors hover:border-accent/60 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">Perfil</p>
+          <p className="mt-2 font-semibold">Actualiza tus datos de entrega</p>
+          <ArrowRight className="mt-4 h-5 w-5 text-accent transition-transform group-hover:translate-x-1" />
+        </Link>
+        <Link href="/cuenta/pedidos" className="group rounded-2xl border border-primary/20 bg-card/60 p-5 transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Historial</p>
+          <p className="mt-2 font-semibold">Consulta tus pedidos y estados</p>
+          <ClipboardList className="mt-4 h-5 w-5 text-primary transition-transform group-hover:translate-x-1" />
+        </Link>
+      </div>
+    </div>
   );
 }

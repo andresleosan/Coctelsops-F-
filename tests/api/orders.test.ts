@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireVerifiedEmail, requirePermission, createOrder, listOrders, getCustomerOrder, updateOrderStatus } = vi.hoisted(() => ({
+const { requireVerifiedEmail, requirePermission, createOrder, listOrders, listOwnOrders, getCustomerOrder, updateOrderStatus } = vi.hoisted(() => ({
   requireVerifiedEmail: vi.fn(),
   requirePermission: vi.fn(),
   createOrder: vi.fn(),
   listOrders: vi.fn(),
+  listOwnOrders: vi.fn(),
   getCustomerOrder: vi.fn(),
   updateOrderStatus: vi.fn(),
 }));
@@ -14,7 +15,7 @@ vi.mock("@/lib/auth/verify-request", () => ({
   toAuthorizationResponse: (error: Error & { status?: number }) => Response.json({ error: error.message }, { status: error.status ?? 500 }),
 }));
 vi.mock("@/lib/auth/permissions", () => ({ requirePermission }));
-vi.mock("@/lib/firestore/orders", () => ({ createOrder, listOrders, getCustomerOrder, updateOrderStatus }));
+vi.mock("@/lib/firestore/orders", () => ({ createOrder, listOrders, listOwnOrders, getCustomerOrder, updateOrderStatus }));
 
 import { GET as GET_ORDERS, POST } from "@/app/api/pedidos/route";
 import { GET as GET_BY_ID, PATCH as PATCH_BY_ID } from "@/app/api/pedidos/[id]/route";
@@ -26,6 +27,7 @@ describe("secure order APIs", () => {
     requirePermission.mockResolvedValue({ uid: "staff-1", permissions: ["pedidos.update"] });
     createOrder.mockResolvedValue({ id: "pedido-1", clienteUid: "customer-1", total: 11500, status: "pendiente" });
     listOrders.mockResolvedValue([{ id: "pedido-1", clienteUid: "customer-1", status: "pendiente" }]);
+    listOwnOrders.mockResolvedValue([{ id: "pedido-1", status: "pendiente" }]);
     getCustomerOrder.mockResolvedValue({ id: "pedido-1", clienteUid: "customer-1" });
     updateOrderStatus.mockResolvedValue({ id: "pedido-1", status: "confirmado" });
   });
@@ -63,6 +65,15 @@ describe("secure order APIs", () => {
     expect(requirePermission).toHaveBeenCalledWith(expect.anything(), "pedidos.read");
     expect(listOrders).toHaveBeenCalledWith(actor);
     await expect(response.json()).resolves.toEqual({ orders: expect.any(Array) });
+  });
+
+  it("lists only the authenticated customer's orders when mine=true", async () => {
+    const response = await GET_ORDERS(new Request("http://localhost/api/pedidos?mine=true"));
+
+    expect(response.status).toBe(200);
+    expect(requireVerifiedEmail).toHaveBeenCalledWith(expect.anything());
+    expect(listOwnOrders).toHaveBeenCalledWith({ uid: "customer-1" });
+    expect(listOrders).not.toHaveBeenCalled();
   });
 
   it("maps validation failures to 422", async () => {

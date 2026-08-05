@@ -8,7 +8,7 @@ function normalizePhone(phone: string): string {
   return normalized;
 }
 
-export function buildWhatsAppMessage(order: Order, phone: string): string {
+export function buildWhatsAppMessage(order: Pick<Order, "id" | "customerName" | "items" | "total" | "address">, phone: string): string {
   const message = [
     `Pedido #${order.id}`,
     `Cliente: ${order.customerName}`,

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { requirePermission } from "@/lib/auth/permissions";
 import { requireVerifiedEmail, toAuthorizationResponse } from "@/lib/auth/verify-request";
-import { createOrder, listOrders } from "@/lib/firestore/orders";
+import { createOrder, listOrders, listOwnOrders } from "@/lib/firestore/orders";
 import { OrderValidationError, createOrderInputSchema } from "@/lib/validation/orders";
 
 function toOrderResponse(error: unknown): Response {
@@ -26,6 +26,11 @@ export async function POST(request: Request): Promise<Response> {
 
 export async function GET(request: Request): Promise<Response> {
   try {
+    if (new URL(request.url).searchParams.get("mine") === "true") {
+      const user = await requireVerifiedEmail(request as never);
+      return Response.json({ orders: await listOwnOrders(user) });
+    }
+
     const user = await requirePermission(request as never, "pedidos.read");
     return Response.json({ orders: await listOrders(user) });
   } catch (error) {

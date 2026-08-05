@@ -51,6 +51,13 @@ export type OrderAudit = {
   updatedAt?: string;
 };
 
+export type OrderStatusHistoryEntry = {
+  status: OrderStatus;
+  actorUid?: string;
+  at: string;
+  reason?: string;
+};
+
 export type Order = {
   id: string;
   clienteUid: string;
@@ -65,5 +72,12 @@ export type Order = {
   createdAt: string;
   updatedAt: string;
   audit: OrderAudit;
+  statusHistory?: OrderStatusHistoryEntry[];
   promotionCode?: string;
+};
+
+export type CustomerStatusHistoryEntry = Pick<OrderStatusHistoryEntry, "status" | "at" | "reason">;
+
+export type CustomerOrder = Omit<Order, "audit" | "clienteUid" | "statusHistory"> & {
+  statusHistory: CustomerStatusHistoryEntry[];
 };

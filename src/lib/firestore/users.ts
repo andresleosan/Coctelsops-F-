@@ -3,6 +3,7 @@ import "server-only";
 import { AuthorizationError } from "@/lib/auth/verify-request";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { writeAuditInTransaction, createAuditEntry } from "@/lib/firestore/audit";
+import { profileUpdateSchema, type ProfileUpdateInput } from "@/lib/validation/account";
 import type { AccountType, AuthProfile, UserProfile } from "@/types/auth";
 
 const accountTypes = new Set<AccountType>(["customer", "staff", "admin"]);
@@ -83,4 +84,30 @@ export async function updateUser(uid: string, input: { active?: boolean; roleIds
 
 export async function auditUserMutation(actorUid: string, uid: string, changes: Record<string, unknown>): Promise<void> {
   await createAuditEntry({ actorUid, action: "update", module: "usuarios", entityId: uid, changes });
+}
+
+export async function updateUserProfile(uid: string, input: ProfileUpdateInput): Promise<UserProfile> {
+  const updates = profileUpdateSchema.parse(input);
+  const db = getAdminDb();
+  const ref = db.collection("users").doc(uid);
+  let updatedProfile: UserProfile | undefined;
+
+  await db.runTransaction(async (transaction) => {
+    const existing = await transaction.get(ref);
+    if (!existing.exists) throw new Error("El perfil de usuario no está disponible");
+
+    const current = toProfile(uid, (existing.data() ?? {}) as Record<string, unknown>);
+    transaction.update(ref, updates);
+    writeAuditInTransaction(transaction, {
+      actorUid: uid,
+      action: "update",
+      module: "usuarios",
+      entityId: uid,
+      changes: { fields: Object.keys(updates) },
+    });
+    updatedProfile = { ...current, ...updates };
+  });
+
+  if (!updatedProfile) throw new Error("No fue posible actualizar el perfil");
+  return updatedProfile;
 }
