@@ -5,8 +5,23 @@ import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 import { requireEnv } from "@/lib/server-env";
+import { assertLoopbackEmulatorHosts } from "@/firebase/emulators";
 
 let adminApp: App | undefined;
+
+function isServerEmulatorMode(environment: Record<string, string | undefined> = process.env): boolean {
+  if (environment.FIREBASE_EMULATORS !== "true") {
+    return false;
+  }
+
+  try {
+    assertLoopbackEmulatorHosts(environment);
+  } catch {
+    return false;
+  }
+
+  return true;
+}
 
 export function getAdminApp(): App {
   if (adminApp) {
@@ -16,6 +31,13 @@ export function getAdminApp(): App {
   const existingApp = getApps()[0];
   if (existingApp) {
     adminApp = existingApp;
+    return adminApp;
+  }
+
+  if (isServerEmulatorMode()) {
+    adminApp = initializeApp({
+      projectId: requireEnv("FIREBASE_PROJECT_ID"),
+    });
     return adminApp;
   }
 
