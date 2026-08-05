@@ -7,8 +7,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createLocalE2EPassword,
   createLocalE2EState,
+  isLocalE2EState,
 } from "../../scripts/e2e-local-state";
-import { cleanupLocalE2EState } from "../../scripts/e2e-local-cleanup";
+import {
+  cleanupLocalE2EState,
+  getLocalE2EResourcePlan,
+} from "../../scripts/e2e-local-cleanup";
 import { loadLocalE2EState } from "../e2e/local-state";
 
 const originalEnvironment = { ...process.env };
@@ -26,9 +30,10 @@ describe("estado E2E local", () => {
   it("genera correos con timestamp y dominio local.test", () => {
     const state = createLocalE2EState(1_700_000_000_000);
 
-    expect(state.customer.email).toMatch(/^customer-1700000000000-[a-f0-9]+@local\.test$/);
-    expect(state.staff.email).toMatch(/^staff-1700000000000-[a-f0-9]+@local\.test$/);
-    expect(state.admin.email).toMatch(/^admin-1700000000000-[a-f0-9]+@local\.test$/);
+    expect(state.customer.email).toMatch(/^customer-e2e-1700000000000-[a-f0-9]+@local\.test$/);
+    expect(state.staff.email).toMatch(/^staff-e2e-1700000000000-[a-f0-9]+@local\.test$/);
+    expect(state.admin.email).toMatch(/^admin-e2e-1700000000000-[a-f0-9]+@local\.test$/);
+    expect(state.customer.uid).toMatch(/^e2e-1700000000000-[a-f0-9]+-customer$/);
   });
 
   it("genera contraseñas no vacías y aptas para Firebase Auth", () => {
@@ -70,6 +75,41 @@ describe("estado E2E local", () => {
     rmSync(directory, { recursive: true, force: true });
   });
 
+  it("rechaza estado versionado con claves o IDs que no genera el setup", () => {
+    const state = createLocalE2EState(1_700_000_000_000);
+
+    expect(isLocalE2EState({ ...state, unexpected: true })).toBe(false);
+    expect(isLocalE2EState({
+      ...state,
+      customer: { ...state.customer, uid: "uid-arbitrario" },
+    })).toBe(false);
+    expect(isLocalE2EState({
+      ...state,
+      resources: { ...state.resources, products: ["producto-ajeno"] },
+    })).toBe(false);
+  });
+
+  it("define el contrato exacto de documentos propios que cleanup puede borrar", () => {
+    const state = createLocalE2EState(1_700_000_000_000);
+    const plan = getLocalE2EResourcePlan(state);
+
+    expect(plan).toHaveLength(15);
+    expect(plan).toEqual(expect.arrayContaining([
+      { collection: "roles", id: "customer" },
+      { collection: "roles", id: "staff" },
+      { collection: "roles", id: "admin" },
+      { collection: "productos", id: "1" },
+      { collection: "productos", id: "5" },
+      { collection: "categorias", id: "granizado" },
+      { collection: "categorias", id: "cocktail" },
+      { collection: "categorias", id: "special" },
+      { collection: "configuracion", id: "principal" },
+      { collection: "users", id: state.customer.uid },
+      { collection: "users", id: state.staff.uid },
+      { collection: "users", id: state.admin.uid },
+    ]));
+  });
+
   it("rechaza cleanup si algún host no es loopback y no borra", async () => {
     process.env.E2E_CLEANUP = "true";
     process.env.E2E_CLEANUP_CONFIRM = "DELETE_E2E_DATA";
@@ -79,5 +119,17 @@ describe("estado E2E local", () => {
     process.env.FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099";
 
     await expect(cleanupLocalE2EState(createLocalE2EState(1_700_000_000_000))).rejects.toThrow("loopback");
+  });
+
+  it("rechaza cleanup antes de importar Firebase si el estado no es estricto", async () => {
+    process.env.E2E_CLEANUP = "true";
+    process.env.E2E_CLEANUP_CONFIRM = "DELETE_E2E_DATA";
+    process.env.FIREBASE_EMULATORS = "true";
+    process.env.FIREBASE_PROJECT_ID = "coctels-test";
+    process.env.FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
+    process.env.FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099";
+    const state = createLocalE2EState(1_700_000_000_000);
+
+    await expect(cleanupLocalE2EState({ ...state, unexpected: true } as typeof state)).rejects.toThrow("formato");
   });
 });

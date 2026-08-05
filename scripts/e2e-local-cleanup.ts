@@ -1,12 +1,20 @@
 import { existsSync, unlinkSync } from "node:fs";
 
+import type { Auth } from "firebase-admin/auth";
+import type { Firestore } from "firebase-admin/firestore";
+
 import { assertLoopbackEmulatorHosts } from "../src/firebase/emulators";
 import { getCleanupSafetyError } from "../tests/e2e/cleanup-safety";
 import {
+  getLocalE2EResourcePlan,
   getLocalE2EStatePath,
   isLocalE2EState,
+  LOCAL_E2E_OWNERSHIP_FIELD,
+  type LocalE2EResourceRef,
   type LocalE2EState,
 } from "./e2e-local-state";
+
+export { getLocalE2EResourcePlan } from "./e2e-local-state";
 
 function assertCleanupEnvironment(): void {
   const safetyError = getCleanupSafetyError(process.env);
@@ -20,13 +28,20 @@ function assertCleanupEnvironment(): void {
   assertLoopbackEmulatorHosts(process.env);
 }
 
-async function deleteCollection(db: FirebaseFirestore.Firestore, collectionName: string): Promise<void> {
-  const snapshot = await db.collection(collectionName).get();
+type CleanupOptions = {
+  resourceKeys?: ReadonlySet<string>;
+};
+
+function resourceKey(resource: LocalE2EResourceRef): string {
+  return `${resource.collection}/${resource.id}`;
+}
+
+async function deleteReferences(db: Firestore, references: FirebaseFirestore.DocumentReference[]): Promise<void> {
   let batch = db.batch();
   let pending = 0;
 
-  for (const document of snapshot.docs) {
-    batch.delete(document.ref);
+  for (const reference of references) {
+    batch.delete(reference);
     pending += 1;
     if (pending === 500) {
       await batch.commit();
@@ -38,25 +53,97 @@ async function deleteCollection(db: FirebaseFirestore.Firestore, collectionName:
   if (pending > 0) await batch.commit();
 }
 
+async function getOwnedResourceReferences(db: Firestore, state: LocalE2EState, options: CleanupOptions): Promise<FirebaseFirestore.DocumentReference[]> {
+  const plan = getLocalE2EResourcePlan(state).filter((resource) => !options.resourceKeys || options.resourceKeys.has(resourceKey(resource)));
+  const snapshots = await Promise.all(plan.map(async (resource) => {
+    const reference = db.collection(resource.collection).doc(resource.id);
+    return { reference, snapshot: await reference.get() };
+  }));
+  const owned: FirebaseFirestore.DocumentReference[] = [];
+
+  for (const { reference, snapshot } of snapshots) {
+    if (!snapshot.exists) continue;
+    const data = snapshot.data() as Record<string, unknown> | undefined;
+    if (data?.[LOCAL_E2E_OWNERSHIP_FIELD] !== state.runId || data.e2eManaged !== true) {
+      throw new Error(`El documento ${reference.path} no pertenece al estado E2E; cleanup abortado sin borrar.`);
+    }
+    owned.push(reference);
+  }
+
+  return owned;
+}
+
+async function getOwnedAuthUsers(auth: Auth, state: LocalE2EState): Promise<string[]> {
+  const owned: string[] = [];
+  for (const role of ["customer", "staff", "admin"] as const) {
+    try {
+      const user = await auth.getUser(state[role].uid);
+      if (user.email !== state[role].email) {
+        throw new Error(`El usuario Auth ${state[role].uid} no coincide con el estado E2E; cleanup abortado sin borrar.`);
+      }
+      owned.push(user.uid);
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "auth/user-not-found") continue;
+      throw error;
+    }
+  }
+  return owned;
+}
+
+async function findReferencesByField(db: Firestore, collectionName: string, field: string, values: string[]): Promise<FirebaseFirestore.DocumentReference[]> {
+  const references: FirebaseFirestore.DocumentReference[] = [];
+  for (const value of values) {
+    const snapshot = await db.collection(collectionName).where(field, "==", value).get();
+    references.push(...snapshot.docs.map((document) => document.ref));
+  }
+  return references;
+}
+
+function uniqueReferences(references: FirebaseFirestore.DocumentReference[]): FirebaseFirestore.DocumentReference[] {
+  const seen = new Set<string>();
+  return references.filter((reference) => {
+    if (seen.has(reference.path)) return false;
+    seen.add(reference.path);
+    return true;
+  });
+}
+
+export async function deleteOwnedLocalE2EData(auth: Auth, db: Firestore, state: LocalE2EState, options: CleanupOptions = {}): Promise<void> {
+  if (!isLocalE2EState(state)) {
+    throw new Error("El estado E2E no tiene el formato esperado.");
+  }
+
+  const ownedResources = await getOwnedResourceReferences(db, state, options);
+  const ownedAuthUsers = await getOwnedAuthUsers(auth, state);
+  const userIds = [state.customer.uid, state.staff.uid, state.admin.uid];
+  const ownedOrders = await findReferencesByField(db, "pedidos", "clienteUid", userIds);
+  const orderIds = ownedOrders.map((reference) => reference.id);
+  const ownedNotifications = await findReferencesByField(db, "notificaciones", "uid", userIds);
+  const ownedAudits = await findReferencesByField(db, "auditoria", "actorUid", userIds);
+
+  for (const orderId of orderIds) {
+    ownedNotifications.push(...await findReferencesByField(db, "notificaciones", "orderId", [orderId]));
+  }
+
+  await deleteReferences(db, uniqueReferences([
+    ...ownedResources,
+    ...ownedOrders,
+    ...ownedNotifications,
+    ...ownedAudits,
+  ]));
+  await Promise.all(ownedAuthUsers.map((uid) => auth.deleteUser(uid)));
+}
+
 export async function cleanupLocalE2EState(state: LocalE2EState): Promise<void> {
   assertCleanupEnvironment();
   if (!isLocalE2EState(state)) {
     throw new Error("El estado E2E no tiene el formato esperado.");
   }
 
-  const [{ getAdminAuth, getAdminDb }] = await Promise.all([
-    import("../src/lib/firebase-admin"),
-  ]);
+  const { getAdminAuth, getAdminDb } = await import("../src/lib/firebase-admin");
   const auth = getAdminAuth();
   const db = getAdminDb();
-
-  await Promise.all([
-    deleteCollection(db, "pedidos"),
-    deleteCollection(db, "auditoria"),
-    deleteCollection(db, "notificaciones"),
-  ]);
-  await Promise.all(Object.values(state).map((user) => db.collection("users").doc(user.uid).delete()));
-  await Promise.all(Object.values(state).map((user) => auth.deleteUser(user.uid)));
+  await deleteOwnedLocalE2EData(auth, db, state);
 
   const stateFile = getLocalE2EStatePath();
   if (existsSync(stateFile)) unlinkSync(stateFile);

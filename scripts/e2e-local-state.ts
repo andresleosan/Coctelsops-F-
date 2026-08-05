@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { assertLoopbackEmulatorHosts } from "../src/firebase/emulators";
@@ -7,6 +7,8 @@ import { DEFAULT_STORE_CONFIGURATION } from "../src/types/operations";
 import { PRODUCTS } from "../src/app/lib/products";
 
 export type LocalE2ERole = "customer" | "staff" | "admin";
+export const LOCAL_E2E_STATE_VERSION = 1 as const;
+export const LOCAL_E2E_OWNERSHIP_FIELD = "e2eRunId" as const;
 
 export type LocalE2EUser = {
   email: string;
@@ -14,7 +16,26 @@ export type LocalE2EUser = {
   uid: string;
 };
 
-export type LocalE2EState = Record<LocalE2ERole, LocalE2EUser>;
+export type LocalE2EResources = {
+  roles: string[];
+  products: string[];
+  categories: string[];
+  configuration: string[];
+};
+
+export type LocalE2EState = {
+  version: typeof LOCAL_E2E_STATE_VERSION;
+  runId: string;
+  customer: LocalE2EUser;
+  staff: LocalE2EUser;
+  admin: LocalE2EUser;
+  resources: LocalE2EResources;
+};
+
+export type LocalE2EResourceRef = {
+  collection: "users" | "roles" | "productos" | "categorias" | "configuracion";
+  id: string;
+};
 
 const ROLE_SEEDS: Record<LocalE2ERole, {
   accountType: LocalE2ERole;
@@ -55,13 +76,18 @@ const CATEGORY_SEEDS = {
   special: { name: "Especiales", active: true, order: 3 },
 } as const;
 
+function expectedResources(): LocalE2EResources {
+  return {
+    roles: ["customer", "staff", "admin"],
+    products: PRODUCTS.map((product) => product.id),
+    categories: Object.keys(CATEGORY_SEEDS),
+    configuration: ["principal"],
+  };
+}
+
 export function getLocalE2EStatePath(environment: Record<string, string | undefined> = process.env): string {
   const configuredPath = environment.E2E_STATE_FILE?.trim();
   return path.resolve(process.cwd(), configuredPath || ".tmp/e2e/local-state.json");
-}
-
-function createLocalE2EEmail(role: LocalE2ERole, timestamp: number): string {
-  return `${role}-${timestamp}-${randomBytes(4).toString("hex")}@local.test`;
 }
 
 export function createLocalE2EPassword(): string {
@@ -69,39 +95,78 @@ export function createLocalE2EPassword(): string {
 }
 
 export function createLocalE2EState(timestamp = Date.now()): LocalE2EState {
+  const runId = `e2e-${timestamp}-${randomBytes(8).toString("hex")}`;
+  const createUser = (role: LocalE2ERole): LocalE2EUser => ({
+    email: `${role}-${runId}@local.test`,
+    password: createLocalE2EPassword(),
+    uid: `${runId}-${role}`,
+  });
+
   return {
-    customer: {
-      email: createLocalE2EEmail("customer", timestamp),
-      password: createLocalE2EPassword(),
-      uid: `pending-customer-${timestamp}`,
-    },
-    staff: {
-      email: createLocalE2EEmail("staff", timestamp),
-      password: createLocalE2EPassword(),
-      uid: `pending-staff-${timestamp}`,
-    },
-    admin: {
-      email: createLocalE2EEmail("admin", timestamp),
-      password: createLocalE2EPassword(),
-      uid: `pending-admin-${timestamp}`,
-    },
+    version: LOCAL_E2E_STATE_VERSION,
+    runId,
+    customer: createUser("customer"),
+    staff: createUser("staff"),
+    admin: createUser("admin"),
+    resources: expectedResources(),
   };
 }
 
+function hasExactKeys(value: object, keys: readonly string[]): boolean {
+  const actualKeys = Object.keys(value).sort();
+  return actualKeys.length === keys.length && actualKeys.every((key, index) => key === [...keys].sort()[index]);
+}
+
+function hasExpectedResources(value: unknown): value is LocalE2EResources {
+  if (!value || typeof value !== "object" || Array.isArray(value) || !hasExactKeys(value, ["roles", "products", "categories", "configuration"])) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const expected = expectedResources();
+  return Object.keys(expected).every((key) => {
+    const actual = candidate[key];
+    const expectedValues = expected[key as keyof LocalE2EResources];
+    return Array.isArray(actual)
+      && actual.length === expectedValues.length
+      && actual.every((item, index) => item === expectedValues[index]);
+  });
+}
+
 export function isLocalE2EState(value: unknown): value is LocalE2EState {
-  if (!value || typeof value !== "object") return false;
+  if (!value || typeof value !== "object" || Array.isArray(value) || !hasExactKeys(value, ["version", "runId", "customer", "staff", "admin", "resources"])) {
+    return false;
+  }
+
+  const candidateState = value as Record<string, unknown>;
+  if (candidateState.version !== LOCAL_E2E_STATE_VERSION
+    || typeof candidateState.runId !== "string"
+    || !/^e2e-\d+-[a-f0-9]{16}$/.test(candidateState.runId)
+    || !hasExpectedResources(candidateState.resources)) {
+    return false;
+  }
 
   return (Object.keys(ROLE_SEEDS) as LocalE2ERole[]).every((role) => {
-    const user = (value as Record<string, unknown>)[role];
-    if (!user || typeof user !== "object") return false;
+    const user = candidateState[role];
+    if (!user || typeof user !== "object" || Array.isArray(user) || !hasExactKeys(user, ["email", "password", "uid"])) return false;
     const candidate = user as Record<string, unknown>;
-    return typeof candidate.email === "string"
-      && candidate.email.endsWith("@local.test")
+    return candidate.email === `${role}-${candidateState.runId}@local.test`
       && typeof candidate.password === "string"
       && candidate.password.length >= 12
-      && typeof candidate.uid === "string"
-      && candidate.uid.length > 0;
+      && candidate.uid === `${candidateState.runId}-${role}`;
   });
+}
+
+export function getLocalE2EResourcePlan(state: LocalE2EState): LocalE2EResourceRef[] {
+  if (!isLocalE2EState(state)) throw new Error("El estado E2E no tiene el formato esperado.");
+
+  return [
+    ...(["customer", "staff", "admin"] as const).map((role) => ({ collection: "users" as const, id: state[role].uid })),
+    ...state.resources.roles.map((id) => ({ collection: "roles" as const, id })),
+    ...state.resources.products.map((id) => ({ collection: "productos" as const, id })),
+    ...state.resources.categories.map((id) => ({ collection: "categorias" as const, id })),
+    ...state.resources.configuration.map((id) => ({ collection: "configuracion" as const, id })),
+  ];
 }
 
 function assertLocalEmulatorEnvironment(): void {
@@ -120,17 +185,31 @@ function writeLocalE2EState(state: LocalE2EState): void {
   writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`, {
     encoding: "utf8",
     mode: 0o600,
+    flag: "wx",
   });
+}
+
+function removeLocalE2EStateFile(): void {
+  const stateFile = getLocalE2EStatePath();
+  if (existsSync(stateFile)) unlinkSync(stateFile);
 }
 
 export async function prepareLocalE2EState(): Promise<LocalE2EState> {
   assertLocalEmulatorEnvironment();
+  if (existsSync(getLocalE2EStatePath())) {
+    throw new Error("Ya existe un archivo de estado E2E; ejecuta cleanup antes de preparar otra corrida.");
+  }
 
   const { getAdminAuth, getAdminDb } = await import("../src/lib/firebase-admin");
   const auth = getAdminAuth();
   const db = getAdminDb();
   const state = createLocalE2EState();
   const now = new Date().toISOString();
+  const createdResourceKeys = new Set<string>();
+  let stateFileCreated = false;
+  const markCreated = (collection: string, id: string): void => {
+    createdResourceKeys.add(`${collection}/${id}`);
+  };
 
   try {
     for (const role of Object.keys(ROLE_SEEDS) as LocalE2ERole[]) {
@@ -139,15 +218,18 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
         password: state[role].password,
         emailVerified: true,
         displayName: ROLE_SEEDS[role].name,
+        uid: state[role].uid,
       });
-      state[role].uid = user.uid;
+      if (user.uid !== state[role].uid) throw new Error("Firebase Auth no devolvio el UID E2E esperado.");
     }
 
     await auth.setCustomUserClaims(state.admin.uid, { admin: true });
 
     for (const role of Object.keys(ROLE_SEEDS) as LocalE2ERole[]) {
       const seed = ROLE_SEEDS[role];
-      await db.collection("users").doc(state[role].uid).set({
+      await db.collection("users").doc(state[role].uid).create({
+        [LOCAL_E2E_OWNERSHIP_FIELD]: state.runId,
+        e2eManaged: true,
         uid: state[role].uid,
         email: state[role].email,
         displayName: seed.name,
@@ -161,10 +243,13 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
         createdAt: now,
         lastLoginAt: now,
       });
+      markCreated("users", state[role].uid);
     }
 
     for (const [id, seed] of Object.entries(ROLE_SEEDS)) {
-      await db.collection("roles").doc(id).set({
+      await db.collection("roles").doc(id).create({
+        [LOCAL_E2E_OWNERSHIP_FIELD]: state.runId,
+        e2eManaged: true,
         name: seed.name,
         description: `Rol local para pruebas E2E (${id}).`,
         active: true,
@@ -172,30 +257,49 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
         createdAt: now,
         updatedAt: now,
       });
+      markCreated("roles", id);
     }
 
     for (const product of PRODUCTS) {
       const { id, ...data } = product;
-      await db.collection("productos").doc(id).set({ ...data, updatedAt: now });
+      await db.collection("productos").doc(id).create({
+        ...data,
+        [LOCAL_E2E_OWNERSHIP_FIELD]: state.runId,
+        e2eManaged: true,
+        updatedAt: now,
+      });
+      markCreated("productos", id);
     }
 
     for (const [id, data] of Object.entries(CATEGORY_SEEDS)) {
-      await db.collection("categorias").doc(id).set({ ...data, updatedAt: now });
+      await db.collection("categorias").doc(id).create({
+        ...data,
+        [LOCAL_E2E_OWNERSHIP_FIELD]: state.runId,
+        e2eManaged: true,
+        updatedAt: now,
+      });
+      markCreated("categorias", id);
     }
 
-    await db.collection("configuracion").doc("principal").set({
+    await db.collection("configuracion").doc("principal").create({
       ...DEFAULT_STORE_CONFIGURATION,
+      [LOCAL_E2E_OWNERSHIP_FIELD]: state.runId,
+      e2eManaged: true,
       updatedAt: now,
     });
+    markCreated("configuracion", "principal");
 
     writeLocalE2EState(state);
+    stateFileCreated = true;
     return state;
   } catch (error) {
-    await Promise.allSettled(
-      (Object.values(state) as LocalE2EUser[])
-        .filter((user) => !user.uid.startsWith("pending-"))
-        .map((user) => auth.deleteUser(user.uid)),
-    );
+    try {
+      const { deleteOwnedLocalE2EData } = await import("./e2e-local-cleanup");
+      await deleteOwnedLocalE2EData(auth, db, state, { resourceKeys: createdResourceKeys });
+      if (stateFileCreated) removeLocalE2EStateFile();
+    } catch (rollbackError) {
+      throw new Error(`Fallo de setup E2E y rollback incompleto: ${rollbackError instanceof Error ? rollbackError.message : "Error desconocido"}`);
+    }
     throw error;
   }
 }

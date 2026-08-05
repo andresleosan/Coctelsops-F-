@@ -46,5 +46,5 @@ next-env.d.ts
 firebase-debug.log
 firestore-debug.log
 
-# estado efímero de pruebas E2E locales
+# estado temporal de pruebas E2E locales
 /.tmp/e2e/
