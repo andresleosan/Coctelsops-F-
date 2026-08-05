@@ -55,6 +55,16 @@ describe("migración de pedidos históricos", () => {
     expect(order.status).toBe("pendiente");
   });
 
+  it("conserva timestamps ISO y Timestamp-like válidos", () => {
+    const order = mapLegacyOrder("legacy-3", {
+      ...legacyOrder,
+      createdAt: { seconds: 1785578400, nanoseconds: 0 },
+    });
+
+    expect(order.createdAt).toBe("2026-08-01T10:00:00.000Z");
+    expect(mapLegacyOrder("legacy-4", legacyOrder).createdAt).toBe(legacyOrder.createdAt);
+  });
+
   it("migra una sola vez, conserva orders y reporta omitidos y fallos", async () => {
     const source = new Map([
       ["legacy-1", legacyOrder],
@@ -79,9 +89,9 @@ describe("migración de pedidos históricos", () => {
   it("no sobrescribe un destino que aparece durante la creación atómica", async () => {
     const source = new Map([["legacy-1", legacyOrder]]);
     const concurrentOrder = { ...mapLegacyOrder("legacy-1", legacyOrder), customerName: "Otro proceso" };
-    const target = new Map<string, Record<string, unknown>>();
+    const target = new Map<string, Record<string, unknown>>([["legacy-1", concurrentOrder]]);
 
-    const summary = await migrateLegacyOrders({ db: fakeDb(source, target, { concurrentOrder }) });
+    const summary = await migrateLegacyOrders({ db: fakeDb(source, target, { raceId: "legacy-1" }) });
 
     expect(summary).toMatchObject({ migrated: 0, skipped: 1, failed: 0 });
     expect(target.get("legacy-1")).toEqual(concurrentOrder);
@@ -112,9 +122,20 @@ describe("migración de pedidos históricos", () => {
     expect(summary.errors[0]?.message).toMatch(/total.*número/i);
     expect(target).toHaveLength(0);
   });
+
+  it("rechaza timestamps string malformados y no crea un pedido corrupto", async () => {
+    const source = new Map([["legacy-1", { ...legacyOrder, createdAt: "not-a-date" }]]);
+    const target = new Map<string, Record<string, unknown>>();
+
+    const summary = await migrateLegacyOrders({ db: fakeDb(source, target) });
+
+    expect(summary).toMatchObject({ migrated: 0, skipped: 0, failed: 1 });
+    expect(summary.errors[0]?.message).toMatch(/createdAt.*fecha válida/i);
+    expect(target).toHaveLength(0);
+  });
 });
 
-function fakeDb(source: Map<string, LegacyOrder>, target: Map<string, Record<string, unknown>>, options: { concurrentOrder?: Record<string, unknown> } = {}) {
+function fakeDb(source: Map<string, LegacyOrder>, target: Map<string, Record<string, unknown>>, options: { raceId?: string } = {}) {
   const sourceCollection = {
     get: async () => ({ docs: [...source.entries()].map(([id, data]) => ({ id, data: () => data })) }),
     doc: () => { throw new Error("La fuente no admite escrituras"); },
@@ -122,21 +143,21 @@ function fakeDb(source: Map<string, LegacyOrder>, target: Map<string, Record<str
   const targetCollection = {
     get: async () => ({ docs: [...target.entries()].map(([id, data]) => ({ id, data: () => data })) }),
     doc: (id: string) => ({
+      id,
       get: async () => ({ exists: target.has(id), data: () => target.get(id) }),
       set: async (data: Record<string, unknown>) => { target.set(id, data); },
     }),
   };
   return {
     collection: (name: string) => name === "orders" ? sourceCollection : targetCollection,
-    runTransaction: async (callback: (transaction: { get: (reference: { get: () => Promise<unknown> }) => Promise<unknown>; create: (ref: { get: () => Promise<unknown> }, data: Record<string, unknown>) => unknown }) => Promise<unknown>) => callback({
-      get: async (reference: { get: () => Promise<unknown> }) => reference.get(),
-      create: (reference: { get: () => Promise<unknown> }, data: Record<string, unknown>) => {
+    runTransaction: async (callback: (transaction: { get: (reference: { id?: string; get: () => Promise<unknown> }) => Promise<unknown>; create: (ref: { id?: string; get: () => Promise<unknown> }, data: Record<string, unknown>) => unknown }) => Promise<unknown>) => callback({
+      get: async (reference: { id?: string; get: () => Promise<unknown> }) => options.raceId === reference.id ? { exists: false, data: () => undefined } : reference.get(),
+      create: (reference: { id?: string; get: () => Promise<unknown> }, data: Record<string, unknown>) => {
         void reference;
-        if (options.concurrentOrder) {
-          target.set("legacy-1", options.concurrentOrder);
+        if (reference.id && target.has(reference.id)) {
           throw Object.assign(new Error("Already exists"), { code: 6 });
         }
-        target.set("legacy-1", data);
+        target.set(reference.id ?? "", data);
       },
     }),
   } as unknown as MigrationDb;

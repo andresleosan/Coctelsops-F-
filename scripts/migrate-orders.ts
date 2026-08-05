@@ -107,7 +107,9 @@ function toIso(value: unknown, field: string, optional = false): string {
   }
   if (typeof value === "string") {
     if (!value.trim()) throw new Error(`${field} legado no puede estar vacío`);
-    return value;
+    const milliseconds = Date.parse(value);
+    if (!Number.isFinite(milliseconds)) throw new Error(`${field} legado no es una fecha válida`);
+    return new Date(milliseconds).toISOString();
   }
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) throw new Error(`${field} legado no es una fecha válida`);
@@ -131,6 +133,7 @@ function toIso(value: unknown, field: string, optional = false): string {
   if (timestamp.seconds !== undefined) {
     const seconds = requiredNumber(timestamp.seconds, `${field}.seconds`);
     const nanoseconds = timestamp.nanoseconds === undefined ? 0 : requiredNumber(timestamp.nanoseconds, `${field}.nanoseconds`, { min: 0 });
+    if (nanoseconds >= 1_000_000_000) throw new Error(`${field}.nanoseconds legado no es válido`);
     const date = new Date(seconds * 1000 + nanoseconds / 1_000_000);
     if (!Number.isNaN(date.getTime())) return date.toISOString();
   }
