@@ -3,34 +3,34 @@
 ## Comandos
 
 - Instalar dependencias: `npm install`.
-- Desarrollo: `npm run dev`; inicia Next.js en `http://localhost:9002` con Turbopack.
-- Desarrollo de Genkit: `npm run genkit:dev`; para recarga automática usar `npm run genkit:watch`.
-- Producción: `npm run build` y luego `npm start`.
+- Desarrollo: `npm run dev`; inicia Next.js en `http://localhost:9002`.
+- Tests unitarios e integración: `npm test`.
 - Verificar tipos: `npm run typecheck`.
 - Lint: `npm run lint`.
-- No hay scripts de pruebas automatizadas definidos en `package.json` ni archivos `*.test.*` o `*.spec.*` en `src/`.
+- Build: `npm run build`.
+- Browser E2E: `npm run test:e2e`, solo con `E2E_BASE_URL`, credenciales efímeras y navegadores Playwright instalados.
+
+No hay credenciales versionadas. Copia `.env.example` a `.env.local` para el cliente y configura `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` y `FIREBASE_PRIVATE_KEY` únicamente en el entorno del servidor o de los scripts.
 
 ## Estructura
 
-- `src/app/` contiene las rutas App Router: inicio, menú, carrito, checkout, sugerencias de IA, administración y estado de pedido.
-- `src/components/layout/` contiene `Header` y `Footer`; `src/components/products/` contiene componentes de productos; `src/components/ui/` contiene primitives basados en Radix.
-- `src/context/cart-context.tsx` mantiene el estado global del carrito y se monta desde `src/app/layout.tsx`.
-- `src/app/lib/products.ts` es el catálogo estático actual y define el tipo `Product`.
-- `src/firebase/` encapsula la inicialización y hooks de Firebase/Firestore/Auth.
-- `src/ai/` contiene la configuración de Genkit y los flows server-side; `src/ai/flows/ai-flavor-suggester.ts` es el flow de sugerencias de sabores.
-- El alias TypeScript `@/*` apunta a `src/*`.
+- `src/app/` contiene las rutas App Router, incluyendo tienda, checkout, cuenta y administración.
+- `src/components/` contiene UI reutilizable y guards de autenticación/permisos.
+- `src/context/cart-context.tsx` mantiene el carrito global.
+- `src/firebase/` encapsula Firebase del navegador; `src/lib/firebase-admin.ts` es solo servidor.
+- `src/lib/firestore/` contiene repositorios y reglas de negocio de Firestore.
+- `scripts/` contiene bootstrap de administrador, seed de catálogo y migración idempotente.
+- `tests/` contiene Vitest; `tests/e2e/` contiene Playwright y queda fuera de `npm test`.
 
-## Integraciones y configuración
+## Firebase y operaciones
 
-- La configuración Firebase está en `src/firebase/config.ts` y actualmente usa valores placeholder; no reemplazarla con secretos reales versionados.
-- Genkit usa el plugin Google AI y el modelo `googleai/gemini-2.5-flash`; los flows pueden requerir credenciales de Google AI configuradas en el entorno.
-- Las rutas de imágenes externas permitidas por Next.js están declaradas en `next.config.ts`; agregar nuevos hosts allí antes de usarlos con `next/image`.
-- `next.config.ts` tiene `typescript.ignoreBuildErrors` y `eslint.ignoreDuringBuilds` activados. Por eso `npm run build` no sustituye a ejecutar explícitamente `npm run typecheck` y `npm run lint`.
-- `apphosting.yaml` configura Firebase App Hosting con `maxInstances: 1`; no asumir que cambiar código despliega automáticamente.
-- `opencode.json` define el agente local y Playwright MCP está deshabilitado (`enabled: false`).
+Antes de publicar reglas o índices revisa el proyecto seleccionado y ejecuta `firebase deploy --project "$env:FIREBASE_PROJECT_ID" --only firestore:rules,firestore:indexes`. Para el primer administrador usa `npx tsx scripts/set-admin.ts <UID>`; para el catálogo usa `npx tsx scripts/seed-catalog.ts`.
 
-## Convenciones de cambio
+No ejecutes `scripts/migrate-orders.ts` ni `scripts/verify-migration.ts` contra producción sin backup verificable, credenciales configuradas y aprobación explícita del operador. La migración nunca debe borrar automáticamente `orders`.
 
-- Mantener la interfaz en español y la experiencia mobile-first descrita en `README.md`.
-- Mantener los límites actuales: páginas y layouts en `src/app/`, UI reutilizable en `src/components/`, estado compartido en `src/context/`, integraciones en sus módulos dedicados.
-- Después de cambios de código, ejecutar como mínimo `npm run typecheck`; para cambios de UI o configuración, ejecutar también `npm run lint` y `npm run build` cuando sea posible.
+## Cambios
+
+- Mantén la interfaz y documentación en español.
+- No añadas secretos reales a código, documentación, fixtures o tests.
+- Después de cambios ejecuta como mínimo `npm test` y `npm run typecheck`; para UI/configuración ejecuta también `npm run lint` y `npm run build`.
+- Reporta vulnerabilidades de dependencias, fallos de comandos y la indisponibilidad de browser E2E como riesgos de release; no los ocultes.

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCart } from '@/context/cart-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,15 +11,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, CreditCard, Wallet, Truck, ArrowLeft } from 'lucide-react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/use-auth';
+import { getCheckoutErrorMessage } from '@/lib/checkout/messages';
+import { DEFAULT_STORE_CONFIGURATION, type StoreConfiguration } from '@/types/operations';
 
 export default function CheckoutPage() {
-  const { totalPrice, items, clearCart } = useCart();
-  const db = useFirestore();
+  const { totalPrice, items, clearCart, getCheckoutItems } = useCart();
+  const { user, loading: authLoading, isVerified } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const idempotencyKey = useRef<string | null>(null);
+  const [configuration, setConfiguration] = useState<StoreConfiguration>(DEFAULT_STORE_CONFIGURATION);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -27,42 +31,66 @@ export default function CheckoutPage() {
     notes: ''
   });
 
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!user) {
+      router.replace('/login?redirect=%2Fcheckout');
+    } else if (!isVerified) {
+      router.replace('/verificar-email');
+    }
+  }, [authLoading, isVerified, router, user]);
+
+  useEffect(() => {
+    void fetch('/api/configuration').then(async (response) => {
+      if (!response.ok) return;
+      const data = await response.json() as { configuration?: StoreConfiguration };
+      if (data.configuration) setConfiguration(data.configuration);
+    }).catch(() => undefined);
+  }, []);
+
+  if (authLoading || !user || !isVerified) {
+    return <div className="container mx-auto flex min-h-[50vh] items-center justify-center px-4 text-muted-foreground">Verificando tu acceso...</div>;
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db) return;
-    
-    setIsSubmitting(true);
-    
-    const orderData = {
-      customerName: formData.name,
-      phone: formData.phone,
-      address: formData.address,
-      notes: formData.notes,
-      items: items.map(item => ({
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        customization: item.customization
-      })),
-      total: totalPrice,
-      status: 'Pendiente',
-      createdAt: serverTimestamp()
-    };
+    if (!user) return;
 
-    addDoc(collection(db, 'orders'), orderData)
-      .then((docRef) => {
-        clearCart();
-        router.push(`/order-status/${docRef.id}`);
-      })
-      .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'orders',
-          operation: 'create',
-          requestResourceData: orderData
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        setIsSubmitting(false);
+    setIsSubmitting(true);
+    setSubmitError('');
+
+    try {
+      const token = await user.getIdToken();
+      idempotencyKey.current ??= crypto.randomUUID();
+      const response = await fetch('/api/pedidos', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}`, 'idempotency-key': idempotencyKey.current },
+        body: JSON.stringify({
+          customerName: formData.name,
+          phone: formData.phone,
+          address: formData.address,
+          notes: formData.notes,
+          items: getCheckoutItems(),
+        }),
       });
+
+      if (response.ok) {
+        const data = await response.json() as { order?: { id: string } };
+        if (!data.order?.id) throw new Error('La respuesta del pedido no es valida');
+        clearCart();
+        router.push(`/order-status/${data.order.id}`);
+        return;
+      }
+
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      idempotencyKey.current = null;
+      setSubmitError(getCheckoutErrorMessage(response.status, body.error, configuration.messages.unavailable));
+    } catch {
+      setSubmitError(getCheckoutErrorMessage(undefined, undefined, configuration.messages.unavailable));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -185,6 +213,7 @@ export default function CheckoutPage() {
                 >
                   {isSubmitting ? 'PROCESANDO...' : 'CONFIRMAR PEDIDO'}
                 </Button>
+                {submitError && <p role="alert" className="text-center text-sm font-bold text-white">{submitError}</p>}
                 <p className="text-[10px] text-center text-white/50 uppercase tracking-[0.2em] font-bold">Al confirmar aceptas los términos</p>
               </CardContent>
             </Card>

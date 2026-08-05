@@ -1,8 +1,14 @@
 
-import { Instagram, Facebook, Phone, MapPin, MessageSquare } from 'lucide-react';
+"use client";
+
+import { Instagram, Facebook, MapPin, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 export default function Footer() {
+  const pathname = usePathname();
+  if (pathname.startsWith('/admin')) return null;
+
   return (
     <footer className="bg-secondary/30 border-t border-primary/20 py-12 mt-12">
       <div className="container mx-auto px-4">

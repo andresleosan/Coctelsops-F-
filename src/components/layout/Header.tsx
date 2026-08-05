@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ShoppingCart, Menu, GlassWater, BrainCircuit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/cart-context';
+import { AuthStatus } from '@/components/auth/AuthStatus';
 import {
   Sheet,
   SheetContent,
@@ -13,10 +14,14 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function Header() {
   const { totalItems } = useCart();
   const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
+
+  if (pathname.startsWith('/admin')) return null;
 
   const NavItems = () => (
     <>
@@ -49,6 +54,7 @@ export default function Header() {
               </SheetHeader>
               <nav className="flex flex-col gap-4 mt-8" onClick={() => setIsOpen(false)}>
                 <NavItems />
+                <AuthStatus mobileMenu />
               </nav>
             </SheetContent>
           </Sheet>
@@ -66,6 +72,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-4">
+          <AuthStatus />
           <Link href="/cart">
             <Button variant="ghost" size="icon" className="relative">
               <ShoppingCart className="w-5 h-5" />

@@ -1,0 +1,41 @@
+import { z } from "zod";
+
+import { requirePermission } from "@/lib/auth/permissions";
+import { requireVerifiedEmail, toAuthorizationResponse, verifyRequest } from "@/lib/auth/verify-request";
+import { createOrder, listOrders, listOwnOrders } from "@/lib/firestore/orders";
+import { OrderValidationError, createOrderInputSchema } from "@/lib/validation/orders";
+
+function toOrderResponse(error: unknown): Response {
+  if (error instanceof SyntaxError || error instanceof z.ZodError || error instanceof OrderValidationError || (error instanceof Error && error.name === "ZodError")) {
+    const message = error instanceof SyntaxError ? "El cuerpo de la solicitud no es un JSON valido" : error instanceof z.ZodError ? error.issues[0]?.message : (error as Error).message;
+    return Response.json({ error: message ?? "Los datos del pedido no son validos" }, { status: 422 });
+  }
+  return toAuthorizationResponse(error);
+}
+
+export async function POST(request: Request): Promise<Response> {
+  try {
+    const user = await requireVerifiedEmail(request as never);
+    const input = createOrderInputSchema.parse(await request.json());
+    const idempotencyKey = request.headers.get("idempotency-key")?.trim();
+    if (!idempotencyKey) throw new OrderValidationError("Falta la clave de idempotencia del pedido");
+    const order = await createOrder(user, input, { idempotencyKey });
+    return Response.json({ order }, { status: 201 });
+  } catch (error) {
+    return toOrderResponse(error);
+  }
+}
+
+export async function GET(request: Request): Promise<Response> {
+  try {
+    if (new URL(request.url).searchParams.get("mine") === "true") {
+      const user = await verifyRequest(request as never);
+      return Response.json({ orders: await listOwnOrders(user) });
+    }
+
+    const user = await requirePermission(request as never, "pedidos.read");
+    return Response.json({ orders: await listOrders(user) });
+  } catch (error) {
+    return toOrderResponse(error);
+  }
+}

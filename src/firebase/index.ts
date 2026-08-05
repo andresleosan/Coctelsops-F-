@@ -13,6 +13,10 @@ export function initializeFirebase(): { app: FirebaseApp; db: Firestore; auth: A
   return { app, db, auth };
 }
 
+export function getFirebaseAuth(): Auth {
+  return initializeFirebase().auth;
+}
+
 export * from './provider';
 export * from './firestore/use-collection';
 export * from './firestore/use-doc';

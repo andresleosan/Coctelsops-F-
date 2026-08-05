@@ -1,0 +1,115 @@
+import "server-only";
+
+import { getAdminDb } from "@/lib/firebase-admin";
+import { AuthorizationError } from "@/lib/auth/verify-request";
+import { writeAuditInTransaction } from "@/lib/firestore/audit";
+import { productInputSchema } from "@/lib/validation/catalog";
+import type { CatalogCaller, CatalogPermission, Product, ProductInput } from "@/types/catalog";
+
+type ProductReadOptions = { includeInactive?: false } | { includeInactive: true; caller: CatalogCaller };
+type InternalProductReadOptions = { includeInactive?: boolean; caller?: CatalogCaller };
+
+function productCollection() {
+  return getAdminDb().collection("productos");
+}
+
+function requireCatalogPermission(caller: CatalogCaller | undefined, permission: CatalogPermission): void {
+  const isAdmin = caller?.token.admin === true && caller.profile.accountType === "admin";
+  const isAllowed = caller?.profile.active === true && (isAdmin || caller.permissions.includes(permission));
+
+  if (!isAllowed) {
+    throw new AuthorizationError(403, "No tienes permiso para acceder al catálogo");
+  }
+}
+
+export function productFromData(id: string, data: Record<string, unknown>): Product {
+  const input = productInputSchema.parse({
+    name: data.name,
+    description: data.description,
+    price: data.price,
+    image: data.image,
+    category: data.category,
+    availableFlavors: data.availableFlavors,
+    availableAddOns: data.availableAddOns,
+    stock: data.stock,
+    active: data.active,
+    featured: data.featured,
+  });
+
+  return { id, ...input };
+}
+
+function toProduct(id: string, data: Record<string, unknown>): Product {
+  return productFromData(id, data);
+}
+
+async function listProducts(options: InternalProductReadOptions = {}): Promise<Product[]> {
+  if (options.includeInactive) requireCatalogPermission(options.caller, "productos.read");
+
+  const query = options.includeInactive
+    ? productCollection()
+    : productCollection().where("active", "==", true);
+  const snapshot = await query.get();
+
+  return snapshot.docs.map((document) => toProduct(document.id, document.data() as Record<string, unknown>));
+}
+
+export function listActiveProducts(): Promise<Product[]> {
+  return listProducts();
+}
+
+export function listAllProducts(caller: CatalogCaller): Promise<Product[]> {
+  return listProducts({ includeInactive: true, caller });
+}
+
+export function getProductById(id: string): Promise<Product | null>;
+export function getProductById(id: string, options: { includeInactive: true; caller: CatalogCaller }): Promise<Product | null>;
+export async function getProductById(id: string, options: ProductReadOptions = {}): Promise<Product | null> {
+  if (!id.trim()) return null;
+  if (options.includeInactive) requireCatalogPermission(options.caller, "productos.read");
+
+  const snapshot = await productCollection().doc(id).get();
+  if (!snapshot.exists) return null;
+
+  const product = toProduct(id, snapshot.data() as Record<string, unknown>);
+  return options.includeInactive || product.active ? product : null;
+}
+
+export async function createProduct(input: ProductInput, caller: CatalogCaller, id?: string): Promise<string> {
+  requireCatalogPermission(caller, "productos.write");
+  const validated = productInputSchema.parse(input);
+  const reference = id ? productCollection().doc(id) : productCollection().doc();
+  const now = new Date().toISOString();
+
+  const data = { ...validated, createdAt: now, updatedAt: now };
+  await getAdminDb().runTransaction(async (transaction) => {
+    transaction.set(reference, data);
+    writeAuditInTransaction(transaction, { actorUid: caller.uid, action: "create", module: "productos", entityId: reference.id, changes: validated });
+  });
+  return reference.id;
+}
+
+export async function updateProduct(id: string, input: ProductInput, caller: CatalogCaller): Promise<void> {
+  requireCatalogPermission(caller, "productos.write");
+  const validated = productInputSchema.parse(input);
+  const reference = productCollection().doc(id);
+  const data = { ...validated, updatedAt: new Date().toISOString() };
+  await getAdminDb().runTransaction(async (transaction) => {
+    transaction.update(reference, data);
+    writeAuditInTransaction(transaction, { actorUid: caller.uid, action: "update", module: "productos", entityId: id, changes: validated });
+  });
+}
+
+export async function deleteProduct(id: string, caller: CatalogCaller): Promise<void> {
+  requireCatalogPermission(caller, "productos.write");
+  const reference = productCollection().doc(id);
+  await getAdminDb().runTransaction(async (transaction) => {
+    transaction.delete(reference);
+    writeAuditInTransaction(transaction, { actorUid: caller.uid, action: "delete", module: "productos", entityId: id });
+  });
+}
+
+export async function seedProduct(input: ProductInput, id: string): Promise<void> {
+  const validated = productInputSchema.parse(input);
+  await productCollection().doc(id).set({ ...validated, updatedAt: new Date().toISOString() }, { merge: true });
+}

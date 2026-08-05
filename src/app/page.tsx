@@ -2,18 +2,17 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Truck, MessageSquare, MapPin, Star } from 'lucide-react';
+import { ArrowRight, Truck, MessageSquare, MapPin } from 'lucide-react';
 import ProductCard from '@/components/products/ProductCard';
-import { PRODUCTS } from './lib/products';
+import CocktailCarousel from '@/components/products/CocktailCarousel';
+import { getFeaturedProducts } from '@/lib/catalog/home';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
-export default function Home() {
-  const featuredProducts = PRODUCTS.slice(0, 3);
+export default async function Home() {
+  const featuredProducts = await getFeaturedProducts();
   
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-granizado')?.imageUrl || 'https://picsum.photos/seed/ops-hero/1200/800';
   const logoImage = PlaceHolderImages.find(img => img.id === 'logo-ops')?.imageUrl || 'https://picsum.photos/seed/ops-logo/600/600';
-  const deliveryImage = PlaceHolderImages.find(img => img.id === 'delivery-info')?.imageUrl || 'https://picsum.photos/seed/ops-delivery/800/600';
-
   return (
     <div className="flex flex-col gap-12 md:gap-20 pb-20 bg-background text-white">
       {/* Hero Section */}
@@ -30,14 +29,14 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/80 to-black"></div>
         </div>
         
-        <div className="container mx-auto px-4 relative z-10 text-center space-y-6 animate-fade-in">
-          <div className="flex justify-center">
-            <div className="relative w-44 h-44 md:w-72 md:h-72 rounded-full border-4 border-primary p-1 shadow-[0_0_40px_rgba(233,30,99,0.5)] bg-black overflow-hidden group transition-all">
+        <div className="container mx-auto px-4 relative z-10 text-center space-y-6 animate-fade-in flex flex-col items-center justify-center min-h-full">
+          <div className="flex justify-center w-full">
+            <div className="relative w-44 h-44 md:w-72 md:h-72 rounded-full border-4 border-primary p-1 shadow-[0_0_40px_rgba(233,30,99,0.5)] bg-black overflow-hidden group transition-all flex items-center justify-center">
               <Image 
                 src={logoImage} 
                 alt="COCTELS OPS OFICIAL" 
                 fill 
-                className="object-cover transition-transform duration-700 group-hover:scale-105"
+                className="object-cover object-center transition-transform duration-700 group-hover:scale-105"
                 priority
                 data-ai-hint="neon logo"
               />
@@ -116,29 +115,13 @@ export default function Home() {
                 <MapPin className="w-5 h-5 text-accent shrink-0" />
                 <div className="space-y-0.5">
                   <p className="text-xs text-white font-medium">Carrera 37 # 66 D 36, Villa Hermosa</p>
-                  <p className="text-[10px] text-muted-foreground italic tracking-wide">"Llegamos frío y potente a todo el barrio."</p>
+                  <p className="text-[10px] text-muted-foreground italic tracking-wide">&quot;Llegamos frío y potente a todo el barrio.&quot;</p>
                 </div>
               </div>
             </div>
 
-            <div className="relative aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/5 order-first md:order-last">
-              <Image 
-                src={deliveryImage} 
-                alt="Delivery OPS" 
-                fill 
-                className="object-cover"
-                data-ai-hint="delivery motorcycle"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-              <div className="absolute bottom-4 left-4 right-4">
-                <div className="bg-black/90 backdrop-blur-xl p-3 rounded-xl border border-primary/40 flex items-center justify-between">
-                  <span className="font-bold text-[9px] uppercase tracking-widest text-white">ESTADO OPS</span>
-                  <span className="flex items-center gap-2 text-green-400 text-[9px] font-black uppercase">
-                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-ping"></span>
-                    ABIERTO AHORA
-                  </span>
-                </div>
-              </div>
+            <div className="relative aspect-square rounded-2xl overflow-hidden shadow-2xl border border-white/5 order-first md:order-last">
+              <CocktailCarousel />
             </div>
           </div>
         </div>

@@ -60,7 +60,7 @@ export default function AISuggestPage() {
             <CardContent>
               <form onSubmit={handleSuggest} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="prefs">Ejemplo: "Quiero algo muy cítrico con frutos rojos y un toque picante"</Label>
+                  <Label htmlFor="prefs">Ejemplo: &quot;Quiero algo muy cítrico con frutos rojos y un toque picante&quot;</Label>
                   <Input 
                     id="prefs" 
                     placeholder="Describe tus antojos..." 
@@ -98,7 +98,7 @@ export default function AISuggestPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <p className="text-center text-white/90 text-lg italic">
-                    "{result.description}"
+                    &quot;{result.description}&quot;
                   </p>
                   
                   <div className="space-y-3">

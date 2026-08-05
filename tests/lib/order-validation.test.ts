@@ -1,0 +1,112 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  calculateOrder,
+  createOrderInputSchema,
+  assertOrderOwnership,
+  assertValidTransition,
+} from "@/lib/validation/orders";
+import { getOrderAction } from "@/lib/orders/status-actions";
+import type { Product } from "@/types/catalog";
+
+const product: Product = {
+  id: "fresa",
+  name: "Fresa Salvaje",
+  description: "Granizado de fresa.",
+  price: 10000,
+  image: "https://picsum.photos/seed/fresa/600/600",
+  category: "granizado",
+  availableFlavors: ["Fresa", "Mango"],
+  availableAddOns: [{ name: "Gomitas", price: 1500 }],
+  stock: 10,
+  active: true,
+  featured: false,
+};
+
+const validInput = {
+  customerName: "Ana Perez",
+  phone: "324 555 0000",
+  address: "Carrera 37 # 66-36",
+  notes: "Timbre azul",
+  items: [
+    {
+      productId: "fresa",
+      quantity: 1,
+      price: 1,
+      name: "Producto falsificado",
+      customization: { size: "Medium", flavors: ["Fresa"], addOns: ["Gomitas"] },
+    },
+  ],
+  total: 1,
+  status: "entregado",
+  clienteUid: "attacker",
+};
+
+describe("order validation", () => {
+  it("rejects an empty cart and incomplete delivery details", () => {
+    expect(() => createOrderInputSchema.parse({ ...validInput, items: [] })).toThrow();
+    expect(() => createOrderInputSchema.parse({ ...validInput, customerName: "" })).toThrow();
+    expect(() => createOrderInputSchema.parse({ ...validInput, phone: "" })).toThrow();
+    expect(() => createOrderInputSchema.parse({ ...validInput, address: "" })).toThrow();
+  });
+
+  it("rejects invalid quantities and unknown promotions", () => {
+    expect(() => createOrderInputSchema.parse({ ...validInput, items: [{ ...validInput.items[0], quantity: 0 }] })).toThrow();
+    expect(() => createOrderInputSchema.parse({ ...validInput, promotionCode: "NO_EXISTE" })).toThrow();
+  });
+
+  it("uses the active product catalog instead of client prices or names", () => {
+    const order = calculateOrder(createOrderInputSchema.parse(validInput), [product]);
+
+    expect(order.total).toBe(11500);
+    expect(order.items[0]).toMatchObject({
+      productId: "fresa",
+      name: "Fresa Salvaje",
+      unitPrice: 11500,
+      subtotal: 11500,
+    });
+    expect(order.items[0]).not.toHaveProperty("price", 1);
+  });
+
+  it("rejects unknown and inactive products", () => {
+    expect(() => calculateOrder(createOrderInputSchema.parse(validInput), [])).toThrow(/producto/i);
+    expect(() => calculateOrder(createOrderInputSchema.parse(validInput), [{ ...product, active: false }])).toThrow(/activo/i);
+  });
+
+  it("rejects unavailable customizations and quantities over stock", () => {
+    expect(() => calculateOrder(createOrderInputSchema.parse({
+      ...validInput,
+      items: [{ ...validInput.items[0], customization: { size: "Medium", flavors: ["Lulo"], addOns: [] } }],
+    }), [product])).toThrow(/sabor/i);
+    expect(() => calculateOrder(createOrderInputSchema.parse({
+      ...validInput,
+      items: [{ ...validInput.items[0], quantity: 11 }],
+    }), [product])).toThrow(/disponible|stock/i);
+  });
+
+  it("rejects aggregate quantity over stock across repeated product lines", () => {
+    expect(() => calculateOrder(createOrderInputSchema.parse({
+      ...validInput,
+      items: [
+        { ...validInput.items[0], quantity: 6 },
+        { ...validInput.items[0], quantity: 6 },
+      ],
+    }), [product])).toThrow(/disponible|stock/i);
+  });
+
+  it("rejects customer reads for another user", () => {
+    expect(() => assertOrderOwnership({ uid: "customer-1" } as never, "customer-2")).toThrow(/permiso/i);
+  });
+
+  it("allows only the defined order state transitions", () => {
+    expect(() => assertValidTransition("pendiente", "confirmado")).not.toThrow();
+    expect(() => assertValidTransition("pendiente", "preparando")).toThrow(/transicion/i);
+    expect(() => assertValidTransition("entregado", "cancelado")).toThrow(/transicion/i);
+    expect(() => assertValidTransition("desconocido" as never, "confirmado")).toThrow(/transicion/i);
+  });
+
+  it("labels dashboard actions with their actual next state", () => {
+    expect(getOrderAction("preparando")).toEqual({ nextStatus: "en_camino", label: "ENVIAR" });
+    expect(getOrderAction("en_camino")).toEqual({ nextStatus: "entregado", label: "ENTREGADO" });
+  });
+});

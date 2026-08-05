@@ -1,0 +1,101 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function ownsOrder() {
+      return signedIn() && resource.data.clienteUid == request.auth.uid;
+    }
+
+    function validOrderStatus(status) {
+      return status in ['pendiente', 'confirmado', 'preparando', 'en_camino', 'entregado', 'cancelado'];
+    }
+
+    function validAddress(address) {
+      return address is map
+        && address.keys().hasAll(['id', 'alias', 'recipientName', 'phone', 'address', 'neighborhood', 'city'])
+        && address.keys().hasOnly(['id', 'alias', 'recipientName', 'phone', 'address', 'neighborhood', 'city', 'notes'])
+        && address.id is string
+        && address.alias is string
+        && address.recipientName is string
+        && address.phone is string
+        && address.address is string
+        && address.neighborhood is string
+        && address.city is string
+        && (!address.keys().hasAny(['notes']) || address.notes is string);
+    }
+
+    function validAddresses(addresses) {
+      return addresses is list
+        && addresses.size() <= 10
+        && (addresses.size() < 1 || validAddress(addresses[0]))
+        && (addresses.size() < 2 || validAddress(addresses[1]))
+        && (addresses.size() < 3 || validAddress(addresses[2]))
+        && (addresses.size() < 4 || validAddress(addresses[3]))
+        && (addresses.size() < 5 || validAddress(addresses[4]))
+        && (addresses.size() < 6 || validAddress(addresses[5]))
+        && (addresses.size() < 7 || validAddress(addresses[6]))
+        && (addresses.size() < 8 || validAddress(addresses[7]))
+        && (addresses.size() < 9 || validAddress(addresses[8]))
+        && (addresses.size() < 10 || validAddress(addresses[9]));
+    }
+
+    match /users/{uid} {
+      allow read: if ownsUser(uid);
+      allow create: if false;
+      allow update: if ownsUser(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'photoURL', 'telefono', 'addresses'
+        ])
+        && (request.resource.data.displayName is string || request.resource.data.displayName == null)
+        && (request.resource.data.photoURL is string || request.resource.data.photoURL == null)
+        && (request.resource.data.telefono is string || request.resource.data.telefono == null)
+        && validAddresses(request.resource.data.addresses);
+      allow delete: if false;
+    }
+
+    match /roles/{roleId} {
+      allow read, write: if false;
+    }
+
+    match /pedidos/{orderId} {
+      allow read: if ownsOrder();
+      allow create, update, delete: if false;
+    }
+
+    match /orders/{orderId} {
+      allow read: if ownsOrder();
+      allow create, update, delete: if false;
+    }
+
+    match /productos/{productId} {
+      allow read: if resource.data.active == true;
+      allow write: if false;
+    }
+
+    match /categorias/{categoryId} {
+      allow read: if resource.data.active == true;
+      allow write: if false;
+    }
+
+    match /auditoria/{auditId} {
+      allow read, write: if false;
+    }
+
+    match /notificaciones/{notificationId} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
