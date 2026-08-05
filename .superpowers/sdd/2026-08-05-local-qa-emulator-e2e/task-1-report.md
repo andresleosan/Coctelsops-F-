@@ -169,4 +169,4 @@ En una primera ejecución paralela de `npm run typecheck`, `npm run lint` y `npm
 
 ### Commit de la ronda
 
-- Pendiente de crear tras incorporar esta ronda al repositorio.
+- `b490fb3` — `fix: cerrar modo admin de Firebase Emulator`
