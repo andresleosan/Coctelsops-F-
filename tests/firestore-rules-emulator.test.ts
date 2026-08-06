@@ -25,6 +25,10 @@ let fixtures: {
   otherOrderId: string;
   roleId: string;
   productId: string;
+  deniedOrderId: string;
+  deniedRoleId: string;
+  deniedStaffAuditId: string;
+  deniedAdminRoleId: string;
 } | undefined;
 
 function userProfile(displayName: string) {
@@ -47,6 +51,10 @@ async function seedFixtures() {
     otherOrderId: `${namespace}-other-order`,
     roleId: `${namespace}-role`,
     productId: `${namespace}-product`,
+    deniedOrderId: `${namespace}-denied-order`,
+    deniedRoleId: `${namespace}-denied-role`,
+    deniedStaffAuditId: `${namespace}-denied-staff-audit`,
+    deniedAdminRoleId: `${namespace}-denied-admin-role`,
   };
 
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
@@ -60,6 +68,10 @@ async function seedFixtures() {
       { collection: "pedidos", id: fixtures!.otherOrderId },
       { collection: "roles", id: fixtures!.roleId },
       { collection: "productos", id: fixtures!.productId },
+      { collection: "pedidos", id: fixtures!.deniedOrderId },
+      { collection: "roles", id: fixtures!.deniedRoleId },
+      { collection: "auditoria", id: fixtures!.deniedStaffAuditId },
+      { collection: "roles", id: fixtures!.deniedAdminRoleId },
     ];
     await Promise.all([
       setDoc(doc(db, "users", fixtures!.customerId), userProfile("Cliente de prueba")),
@@ -125,16 +137,16 @@ describe("reglas Firestore en emulator", () => {
   it("impide al cliente crear o modificar pedidos directamente", async () => {
     const db = testEnvironment.authenticatedContext(fixtures!.customerId).firestore();
 
-    await assertFails(setDoc(doc(db, "pedidos", `${runId}-new-order`), { clienteUid: fixtures!.customerId }));
+    await assertFails(setDoc(doc(db, "pedidos", fixtures!.deniedOrderId), { clienteUid: fixtures!.customerId }));
     await assertFails(updateDoc(doc(db, "pedidos", fixtures!.orderId), { status: "confirmado" }));
   });
 
   it("impide a staff escribir roles y datos administrativos", async () => {
     const db = testEnvironment.authenticatedContext(fixtures!.staffId, { staff: true }).firestore();
 
-    await assertFails(setDoc(doc(db, "roles", `${runId}-new-role`), { name: "No permitido" }));
+    await assertFails(setDoc(doc(db, "roles", fixtures!.deniedRoleId), { name: "No permitido" }));
     await assertFails(updateDoc(doc(db, "productos", fixtures!.productId), { name: "Cambio no permitido" }));
-    await assertFails(setDoc(doc(db, "auditoria", `${runId}-audit`), { action: "No permitido" }));
+    await assertFails(setDoc(doc(db, "auditoria", fixtures!.deniedStaffAuditId), { action: "No permitido" }));
   });
 
   it("permite leer roles solo al admin con claim booleano estricto", async () => {
@@ -147,6 +159,6 @@ describe("reglas Firestore en emulator", () => {
     await assertFails(getDoc(doc(staffDb, "roles", fixtures!.roleId)));
     await assertFails(getDoc(doc(customerDb, "roles", fixtures!.roleId)));
     await assertFails(getDoc(doc(nonBooleanAdminDb, "roles", fixtures!.roleId)));
-    await assertFails(setDoc(doc(adminDb, "roles", `${runId}-admin-role`), { name: "No permitido" }));
+    await assertFails(setDoc(doc(adminDb, "roles", fixtures!.deniedAdminRoleId), { name: "No permitido" }));
   });
 });

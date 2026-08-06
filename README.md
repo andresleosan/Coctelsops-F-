@@ -27,7 +27,7 @@ Coctels OPS es una tienda mobile-first de cócteles y un panel operativo constru
    ```
 6. Inicia el servidor: `npm run dev`. La aplicación queda en `http://localhost:9002`.
 
-`firebase.json` solo referencia `firestore.rules` y `firestore.indexes.json`; no contiene secretos. El flujo oficial de QA local usa los runners descritos abajo, selecciona puertos loopback dinámicos y crea configuración temporal; no requiere un proyecto Firebase remoto.
+`firebase.json` referencia `firestore.rules` y `firestore.indexes.json`, configura los emuladores locales y no contiene secretos. El flujo oficial de QA local usa los runners descritos abajo, selecciona puertos loopback dinámicos y crea configuración temporal; no requiere un proyecto Firebase remoto.
 
 ## QA local con Firebase Emulator Suite
 

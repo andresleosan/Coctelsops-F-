@@ -30,6 +30,8 @@ describeWhenReady("estado E2E contra Firebase Emulator", () => {
     const ownedAuditId = `e2e-audit-${state.runId}`;
     const ownedNotificationId = `e2e-notification-${state.runId}`;
     const unrelatedOrderId = `unrelated-order-${state.runId}`;
+    const ownedMovement = db.collection("inventario_movimientos").doc();
+    const unrelatedMovement = db.collection("inventario_movimientos").doc();
 
     try {
       for (const resource of plan) {
@@ -41,6 +43,28 @@ describeWhenReady("estado E2E contra Firebase Emulator", () => {
       await db.collection("auditoria").doc(ownedAuditId).set({ actorUid: state.staff.uid });
       await db.collection("notificaciones").doc(ownedNotificationId).set({ uid: state.customer.uid });
       await db.collection("pedidos").doc(unrelatedOrderId).set({ clienteUid: "cliente-ajeno" });
+      await ownedMovement.set({
+        productId: state.resources.products[0],
+        type: "salida",
+        quantity: 1,
+        reason: `Pedido ${ownedOrderId}`,
+        actorUid: state.customer.uid,
+        orderId: ownedOrderId,
+        previousStock: 10,
+        resultingStock: 9,
+        createdAt: new Date().toISOString(),
+      });
+      await unrelatedMovement.set({
+        productId: "producto-ajeno",
+        type: "salida",
+        quantity: 1,
+        reason: `Pedido ${unrelatedOrderId}`,
+        actorUid: "cliente-ajeno",
+        orderId: unrelatedOrderId,
+        previousStock: 10,
+        resultingStock: 9,
+        createdAt: new Date().toISOString(),
+      });
     } finally {
       await cleanupLocalE2EState(state);
     }
@@ -52,6 +76,8 @@ describeWhenReady("estado E2E contra Firebase Emulator", () => {
     expect((await db.collection("auditoria").doc(ownedAuditId).get()).exists).toBe(false);
     expect((await db.collection("notificaciones").doc(ownedNotificationId).get()).exists).toBe(false);
     expect((await db.collection("pedidos").doc(unrelatedOrderId).get()).exists).toBe(true);
+    expect((await ownedMovement.get()).exists).toBe(false);
+    expect((await unrelatedMovement.get()).exists).toBe(true);
     expect(existsSync(".tmp/e2e/local-state.json")).toBe(false);
   }, 30_000);
 

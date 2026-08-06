@@ -8,6 +8,7 @@ La implementacion queda limitada a Firebase Emulator con hosts loopback. No se u
 
 ## Commits
 
+- `67ccf83` - `fix: restringir rollback y cleanup E2E`
 - `4e17129` - `test: preparar datos efimeros para E2E local`
 - `64a2cfd` - `fix: cerrar cleanup y rollback E2E local`
 

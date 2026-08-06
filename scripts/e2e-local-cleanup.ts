@@ -123,6 +123,7 @@ export async function deleteOwnedLocalE2EData(auth: Auth, db: Firestore, state: 
   const userIds = [state.customer.uid, state.staff.uid, state.admin.uid];
   const ownedOrders = await findReferencesByField(db, "pedidos", "clienteUid", userIds);
   const orderIds = ownedOrders.map((reference) => reference.id);
+  const ownedInventoryMovements = await findReferencesByField(db, "inventario_movimientos", "orderId", orderIds);
   const ownedNotifications = await findReferencesByField(db, "notificaciones", "uid", userIds);
   const ownedAudits = await findReferencesByField(db, "auditoria", "actorUid", userIds);
 
@@ -133,6 +134,7 @@ export async function deleteOwnedLocalE2EData(auth: Auth, db: Firestore, state: 
   await deleteReferences(db, uniqueReferences([
     ...ownedResources,
     ...ownedOrders,
+    ...ownedInventoryMovements,
     ...ownedNotifications,
     ...ownedAudits,
   ]));
