@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { createServer } from "node:net";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -6,6 +7,7 @@ import path from "node:path";
 
 const projectId = "demo-coctels-e2e";
 const testFile = "tests/firestore-rules-emulator.test.ts";
+const runId = process.env.FIRESTORE_RULES_RUN_ID ?? `${process.pid}-${randomUUID()}`;
 const useExistingEmulator = process.argv.includes("--use-existing-emulator")
   || process.env.FIRESTORE_RULES_USE_EXISTING_EMULATOR === "true";
 
@@ -97,6 +99,7 @@ function testEnvironment(host: string): NodeJS.ProcessEnv {
     ...process.env,
     FIRESTORE_EMULATOR_HOST: host,
     FIRESTORE_RULES_EMULATOR: "true",
+    FIRESTORE_RULES_RUN_ID: runId,
   };
 }
 

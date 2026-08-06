@@ -6,6 +6,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
     function ownsUser(uid) {
       return signedIn() && request.auth.uid == uid;
     }
@@ -62,7 +66,8 @@ service cloud.firestore {
     }
 
     match /roles/{roleId} {
-      allow read, write: if false;
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
     }
 
     match /pedidos/{orderId} {

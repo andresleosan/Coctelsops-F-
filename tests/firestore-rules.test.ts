@@ -12,6 +12,8 @@ describe("Firestore ownership contract", () => {
     expect(rules).toContain("match /productos/{productId} {");
     expect(rules).toContain("match /categorias/{categoryId} {");
     expect(rules).toContain("match /auditoria/{auditId} {");
+    expect(rules).toContain("request.auth.token.admin == true");
+    expect(rules).toContain("allow read: if isAdmin();");
     expect(rules).toContain("allow read, write: if false;");
     expect(rules).toContain("allow create, update, delete: if false;");
     expect(rules).toContain("allow write: if false;");
