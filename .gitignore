@@ -57,3 +57,4 @@ storage-debug.log
 /.tmp/e2e/
 /qa/reports/
 /qa/test-results/
+/.superpowers/
