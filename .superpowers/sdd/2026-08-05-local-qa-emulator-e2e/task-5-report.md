@@ -14,7 +14,7 @@ Se corrigieron las dos causas que bloqueaban la verificacion: configuracion publ
 - `.gitignore`: estado E2E, reportes, resultados y logs del Emulator Suite.
 - `src/firebase/config.ts`, `scripts/e2e-local-runner.ts`, `playwright.config.ts`: configuracion publica demo local y propagacion de variables al cliente.
 - `tests/lib/firebase-config.test.ts`, `tests/lib/e2e-local-runner.test.ts`, `tests/lib/playwright-config.test.ts`, `tests/lib/firebase-emulators.test.ts`: regresiones de configuracion y timeouts especificos.
-- `tests/e2e/auth-checkout-admin.spec.ts`: esperas explicitas para compilacion cold, navegacion SPA y popup/contexto local.
+- `tests/e2e/auth-checkout-admin.spec.ts`: esperas explicitas para compilacion cold, response 200 de `/api/auth/sync`, navegacion SPA, popup/contexto local y transicion administrativa estricta a `confirmado`.
 
 ## Verificacion ejecutada
 
@@ -53,6 +53,12 @@ La auditoria no se corrigio con `npm audit fix --force`. La salida indica actual
 - `.tmp/e2e`, `qa/reports`, `qa/test-results` y logs del Emulator Suite estan ignorados por Git. No se versionan estados, reportes, screenshots, traces, tokens ni credenciales.
 - Responsive manual a 375px y desktop no fue ejecutado.
 - No hay aprobacion de release de produccion. La decision queda condicionada a tratar las vulnerabilidades y ejecutar responsive manual; las pruebas automatizadas del bloque pasan.
+
+## Review Fix Round 1
+
+- Se separaron en el reporte los intentos historicos fallidos de la verificacion final vigente; el resultado final queda explicitamente verde para `npm test`, reglas, E2E, typecheck, lint, build y diff.
+- La prueba administrativa exige ahora el boton exacto `confirmar` y la respuesta `PATCH` con `order.status === "confirmado"`; no acepta `preparar` ni deriva la expectativa del texto.
+- El helper E2E de login espera y aserta response HTTP `200` para `POST /api/auth/sync` sin duplicar el flujo de autenticacion.
 
 ## Commit
 

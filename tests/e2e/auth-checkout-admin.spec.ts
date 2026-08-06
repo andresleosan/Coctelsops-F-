@@ -94,7 +94,12 @@ test.describe("auth, checkout y operaciones administrativas", () => {
     await page.goto(`/login?redirect=${encodeURIComponent(path)}`);
     await page.getByLabel("Correo electrónico").fill(email);
     await page.getByLabel("Contraseña").fill(password);
+    const authSyncResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === "/api/auth/sync" && response.request().method() === "POST";
+    }, { timeout: 30_000 });
     await page.getByRole("button", { name: "Ingresar" }).click();
+    expect((await authSyncResponse).status()).toBe(200);
     await expect(page).toHaveURL(new RegExp(`${path.replaceAll("/", "\\/")}(?:$|[?#])`), { timeout: 30_000 });
   }
 
@@ -212,12 +217,11 @@ test.describe("auth, checkout y operaciones administrativas", () => {
       await expect(page.getByRole("heading", { name: `#${orderId}` })).toBeVisible();
       page.on("dialog", (dialog) => void dialog.accept());
       const responsePromise = page.waitForResponse((response) => response.url().endsWith(`/api/pedidos/${orderId}`) && response.request().method() === "PATCH");
-      const actionButton = page.getByRole("button", { name: /confirmar|preparar/i });
-      const expectedStatus = /confirmar/i.test(await actionButton.innerText()) ? "confirmado" : "preparando";
+      const actionButton = page.getByRole("button", { name: /^confirmar$/i });
       await actionButton.click();
       const response = await responsePromise;
       expect(response.ok()).toBe(true);
-      expect((await response.json()).order.status).toBe(expectedStatus);
+      expect((await response.json()).order.status).toBe("confirmado");
 
       await page.getByRole("button", { name: "Cerrar sesión" }).click();
       await expect(page).toHaveURL(/\/admin\/login(?:$|[?#])/);
