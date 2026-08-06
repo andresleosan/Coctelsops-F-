@@ -212,5 +212,5 @@ describe("getAdminApp en modo emulator", () => {
     expect(adminMocks.requireEnv).not.toHaveBeenCalled();
     expect(adminMocks.cert).not.toHaveBeenCalled();
     expect(adminMocks.initializeApp).not.toHaveBeenCalled();
-  });
+  }, 30_000);
 });

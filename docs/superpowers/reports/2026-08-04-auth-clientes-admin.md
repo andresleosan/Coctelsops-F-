@@ -5,6 +5,21 @@ Task 10 revisada: base `82b4ef3`, head `12a8a37`; seguimiento de cierre hasta `d
 Rango amplio de implementación previa: `d63b23b..82b4ef3`
 Alcance: Task 10, verificación y documentación del trabajo de autenticación, cuentas, checkout seguro, operaciones administrativas y migración idempotente.
 
+## Addendum de cierre Task 5 (2026-08-06)
+
+La verificación bloqueada anteriormente fue corregida y repetida sin operaciones remotas.
+
+- `src/firebase/config.ts` consume `NEXT_PUBLIC_FIREBASE_*`. Los defaults `demo-coctels-e2e` (`demo-key`, dominio Auth, storage, messaging y appId demo) solo aplican cuando `NEXT_PUBLIC_FIREBASE_EMULATORS=true`; producción no cae al proyecto demo.
+- `scripts/e2e-local-runner.ts` y `playwright.config.ts` pasan esas variables públicas al cliente local. Los hosts públicos siguen validándose como loopback y el modo emulator mantiene fail-closed.
+- `npm test`: **PASS**, exit `0`, `43` archivos pasaron, `203` tests pasaron, `1` archivo y `4` tests omitidos preexistentes. Los timeouts de imports dinámicos se resolvieron con `30_000ms` únicamente en `tests/lib/firebase-emulators.test.ts` y `tests/lib/playwright-config.test.ts`; no se cambió el timeout global.
+- `npm run test:firestore-rules`: **PASS**, exit `0`, `5/5` casos reales contra Firestore Emulator.
+- `npm run test:e2e:local`: **PASS**, exit `0`, `3/3` escenarios reales, `0` skipped. La corrida observó `POST /api/auth/sync` con respuesta `200`; cleanup de Auth, Firestore, estado y configuración temporal terminó.
+- `npm run typecheck`, `npm run lint`, `npm run build` y `git diff --check`: **PASS**, exit `0`.
+- `npm audit --omit=dev --audit-level=high`: exit `1`, `62 vulnerabilidades` (`52 moderate`, `10 high`). No se ejecutó `npm audit fix --force`.
+- Responsive manual sigue pendiente. No se ejecutaron `firebase deploy`, seed ni migraciones remotas.
+
+**Estado actual:** `DONE_WITH_CONCERNS`. No declarar release de producción aprobada mientras sigan abiertas la auditoría de dependencias y la verificación responsive manual.
+
 ## Cambios de Task 10
 
 - README actualizado con requisitos, variables públicas y privadas, proveedores de Auth, despliegue de reglas/índices, bootstrap de administrador, seed de catálogo y migración.

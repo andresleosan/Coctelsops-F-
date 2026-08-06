@@ -48,12 +48,18 @@ describe("configuracion local de Playwright", () => {
       FIREBASE_EMULATORS: "true",
       NEXT_PUBLIC_FIREBASE_EMULATORS: "true",
       FIREBASE_PROJECT_ID: "demo-coctels-e2e",
+      NEXT_PUBLIC_FIREBASE_API_KEY: "demo-key",
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "demo-coctels-e2e.firebaseapp.com",
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: "demo-coctels-e2e",
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "demo-coctels-e2e.firebasestorage.app",
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "1234567890",
+      NEXT_PUBLIC_FIREBASE_APP_ID: "1:1234567890:web:demo-coctels-e2e",
       FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080",
       FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
       NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080",
       NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
     });
-  });
+  }, 30_000);
 
   it("usa los hosts públicos configurados para el servidor local", async () => {
     delete process.env.E2E_BASE_URL;

@@ -4,6 +4,7 @@ import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, rmSync, unlink
 import Module from "node:module";
 import path from "node:path";
 
+import { LOCAL_FIREBASE_CONFIG } from "../src/firebase/config";
 import { getLocalE2EStatePath } from "./e2e-local-state";
 
 const emulatorProject = "demo-coctels-e2e";
@@ -112,6 +113,12 @@ export function createLocalE2EEnvironment(
   environment.FIREBASE_EMULATORS = "true";
   environment.NEXT_PUBLIC_FIREBASE_EMULATORS = "true";
   environment.FIREBASE_PROJECT_ID = emulatorProject;
+  environment.NEXT_PUBLIC_FIREBASE_API_KEY = LOCAL_FIREBASE_CONFIG.apiKey;
+  environment.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = LOCAL_FIREBASE_CONFIG.authDomain;
+  environment.NEXT_PUBLIC_FIREBASE_PROJECT_ID = LOCAL_FIREBASE_CONFIG.projectId;
+  environment.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = LOCAL_FIREBASE_CONFIG.storageBucket;
+  environment.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = LOCAL_FIREBASE_CONFIG.messagingSenderId;
+  environment.NEXT_PUBLIC_FIREBASE_APP_ID = LOCAL_FIREBASE_CONFIG.appId;
   environment.E2E_CLEANUP = "true";
   environment.E2E_CLEANUP_CONFIRM = "DELETE_E2E_DATA";
 

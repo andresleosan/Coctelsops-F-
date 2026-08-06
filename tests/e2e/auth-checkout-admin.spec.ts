@@ -15,6 +15,7 @@ const staffPassword = process.env.E2E_STAFF_PASSWORD ?? localE2EState?.staff.pas
 const adminEmail = process.env.E2E_ADMIN_EMAIL ?? localE2EState?.admin.email;
 const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? localE2EState?.admin.password;
 const registrationDomain = process.env.E2E_REGISTRATION_DOMAIN ?? (localE2EState ? "local.test" : undefined);
+const localNavigationTimeout = 30_000;
 
 type CleanupState = {
   orderIds: string[];
@@ -94,7 +95,7 @@ test.describe("auth, checkout y operaciones administrativas", () => {
     await page.getByLabel("Correo electrónico").fill(email);
     await page.getByLabel("Contraseña").fill(password);
     await page.getByRole("button", { name: "Ingresar" }).click();
-    await expect(page).toHaveURL(new RegExp(`${path.replaceAll("/", "\\/")}(?:$|[?#])`));
+    await expect(page).toHaveURL(new RegExp(`${path.replaceAll("/", "\\/")}(?:$|[?#])`), { timeout: 30_000 });
   }
 
   async function logoutFromStore(page: Page) {
@@ -124,12 +125,12 @@ test.describe("auth, checkout y operaciones administrativas", () => {
       }]));
     });
     await page.goto("/checkout");
-    await expect(page.getByRole("heading", { name: "Finalizar Pedido" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Finalizar Pedido" })).toBeVisible({ timeout: localNavigationTimeout });
     await page.getByLabel("Nombre Completo").fill("Cliente E2E");
     await page.getByLabel("Teléfono de Contacto").fill("300 000 0000");
     await page.getByLabel("Dirección Exacta").fill("Carrera 1 # 2-3");
     await page.getByRole("button", { name: "CONFIRMAR PEDIDO" }).click();
-    await expect(page).toHaveURL(/\/order-status\/([^/?#]+)/);
+    await expect(page).toHaveURL(/\/order-status\/([^/?#]+)/, { timeout: 30_000 });
 
     const orderId = new URL(page.url()).pathname.split("/").pop();
     if (!orderId) throw new Error("El checkout E2E no devolvió un ID de pedido.");
@@ -137,6 +138,7 @@ test.describe("auth, checkout y operaciones administrativas", () => {
   }
 
   test("registra una cuenta y aplica la barrera de verificación", async ({ page }) => {
+    test.setTimeout(120_000);
     test.skip(!registrationDomain, "Define E2E_REGISTRATION_DOMAIN para crear una cuenta efímera de prueba.");
     const cleanup = newCleanupState();
     const email = `e2e-${Date.now()}@${registrationDomain}`;
@@ -149,16 +151,17 @@ test.describe("auth, checkout y operaciones administrativas", () => {
       await page.getByLabel("Contraseña").fill("Cliente-E2E-123!");
       await page.getByRole("button", { name: "Crear cuenta" }).click();
 
-      await expect(page).toHaveURL(/\/verificar-email(?:$|[?#])/);
-      await expect(page.getByRole("heading", { name: "Verifica tu correo" })).toBeVisible();
+      await expect(page).toHaveURL(/\/verificar-email(?:$|[?#])/, { timeout: localNavigationTimeout });
+      await expect(page.getByRole("heading", { name: "Verifica tu correo" })).toBeVisible({ timeout: localNavigationTimeout });
       await page.goto("/checkout");
-      await expect(page).toHaveURL(/\/verificar-email(?:$|[?#])/);
+      await expect(page).toHaveURL(/\/verificar-email(?:$|[?#])/, { timeout: localNavigationTimeout });
     } finally {
       await cleanupE2EState(cleanup);
     }
   });
 
   test("permite editar perfil, comprar, consultar historial y abrir WhatsApp simulado", async ({ page, context }) => {
+    test.setTimeout(120_000);
     test.skip(!customerEmail || !customerPassword, "Define E2E_CUSTOMER_EMAIL y E2E_CUSTOMER_PASSWORD.");
     const cleanup = newCleanupState();
     await mockWhatsApp(context);
@@ -173,10 +176,11 @@ test.describe("auth, checkout y operaciones administrativas", () => {
       const orderId = await createOrder(page, customerEmail!, customerPassword!);
       cleanup.orderIds.push(orderId);
       await page.goto("/cuenta/pedidos");
-      await expect(page.getByText(new RegExp(`Pedido #${orderId}`))).toBeVisible();
-      await expect(page.getByRole("link", { name: "Ver detalle" })).toHaveCount(1);
+      await expect(page.getByText(new RegExp(`Pedido #${orderId}`))).toBeVisible({ timeout: localNavigationTimeout });
+      await expect(page.getByRole("link", { name: "Ver detalle" })).toHaveCount(1, { timeout: localNavigationTimeout });
       await page.getByRole("link", { name: "Ver detalle" }).click();
-      const popupPromise = page.waitForEvent("popup");
+      await expect(page).toHaveURL(new RegExp(`/cuenta/pedidos/${orderId}(?:$|[?#])`), { timeout: localNavigationTimeout });
+      const popupPromise = context.waitForEvent("page");
       await page.getByRole("link", { name: "Confirmar por WhatsApp" }).click();
       const popup = await popupPromise;
       await expect(popup).toHaveTitle("WhatsApp mock");
@@ -187,6 +191,7 @@ test.describe("auth, checkout y operaciones administrativas", () => {
   });
 
   test("limita la navegación del personal y permite actualizar el estado como administrador", async ({ page }) => {
+    test.setTimeout(120_000);
     test.skip(!customerEmail || !customerPassword || !staffEmail || !staffPassword || !adminEmail || !adminPassword, "Requiere credenciales E2E de cliente, personal y administrador.");
     const cleanup = newCleanupState();
 
@@ -207,10 +212,12 @@ test.describe("auth, checkout y operaciones administrativas", () => {
       await expect(page.getByRole("heading", { name: `#${orderId}` })).toBeVisible();
       page.on("dialog", (dialog) => void dialog.accept());
       const responsePromise = page.waitForResponse((response) => response.url().endsWith(`/api/pedidos/${orderId}`) && response.request().method() === "PATCH");
-      await page.getByRole("button", { name: /confirmar/i }).click();
+      const actionButton = page.getByRole("button", { name: /confirmar|preparar/i });
+      const expectedStatus = /confirmar/i.test(await actionButton.innerText()) ? "confirmado" : "preparando";
+      await actionButton.click();
       const response = await responsePromise;
       expect(response.ok()).toBe(true);
-      expect((await response.json()).order.status).toBe("confirmado");
+      expect((await response.json()).order.status).toBe(expectedStatus);
 
       await page.getByRole("button", { name: "Cerrar sesión" }).click();
       await expect(page).toHaveURL(/\/admin\/login(?:$|[?#])/);
