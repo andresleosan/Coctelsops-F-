@@ -58,4 +58,4 @@ La configuración, el runner, el fallback al estado local y la limpieza segura e
 
 `88d9499 test: ejecutar E2E contra emuladores locales`
 
-Commit de esta ronda: se registrará en el cierre de Task 3 sin amend.
+Commit de esta ronda: `24b812d fix: robustecer E2E local con puertos dinámicos`.
