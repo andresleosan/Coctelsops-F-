@@ -263,7 +263,16 @@ export async function updateOrderStatus(user: VerifiedUser, id: string, input: S
       createdAt: now,
       read: false,
     });
-    writeAuditInTransaction(transaction, { actorUid: user.uid, action: "update", module: "pedidos", entityId: id, changes: { status: validated.status, reason: validated.reason } });
+    writeAuditInTransaction(transaction, {
+      actorUid: user.uid,
+      action: "update",
+      module: "pedidos",
+      entityId: id,
+      changes: {
+        status: validated.status,
+        ...(validated.reason ? { reason: validated.reason } : {}),
+      },
+    });
     updated = { ...current, ...update, status: validated.status, updatedAt: now, audit: update.audit };
   });
 

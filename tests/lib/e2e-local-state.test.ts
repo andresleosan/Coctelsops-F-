@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createLocalE2EPassword,
   createLocalE2EState,
+  getLocalE2EProductImage,
   isLocalE2EState,
   LOCAL_E2E_ROLES,
 } from "../../scripts/e2e-local-state";
@@ -14,7 +15,9 @@ import {
   cleanupLocalE2EState,
   getLocalE2EResourcePlan,
 } from "../../scripts/e2e-local-cleanup";
-import { loadLocalE2EState } from "../e2e/local-state";
+import { loadLocalE2EState, shouldUseLocalE2EState } from "../e2e/local-state";
+import { PRODUCTS } from "../../src/app/lib/products";
+import { isAllowedCatalogImage } from "../../src/lib/catalog/image-hosts";
 
 const originalEnvironment = { ...process.env };
 
@@ -42,6 +45,22 @@ describe("estado E2E local", () => {
 
     expect(passwords.every((password) => password.length >= 12)).toBe(true);
     expect(passwords[0]).not.toBe(passwords[1]);
+  });
+
+  it("normaliza todas las imágenes de productos E2E a URLs de catálogo permitidas", () => {
+    const images = PRODUCTS.map((product) => getLocalE2EProductImage(product));
+
+    expect(images).toHaveLength(PRODUCTS.length);
+    expect(images.every((image) => image.trim().length > 0 && isAllowedCatalogImage(image))).toBe(true);
+    expect(images[0]).toBe(PRODUCTS[0].image);
+    expect(images[3]).toBe("https://picsum.photos/seed/e2e-product-4/600/600");
+    expect(images[4]).toBe("https://picsum.photos/seed/e2e-product-5/600/600");
+  });
+
+  it("solo permite cargar el estado local con emuladores y sin E2E_BASE_URL", () => {
+    expect(shouldUseLocalE2EState({ NEXT_PUBLIC_FIREBASE_EMULATORS: "true" })).toBe(true);
+    expect(shouldUseLocalE2EState({ NEXT_PUBLIC_FIREBASE_EMULATORS: "true", E2E_BASE_URL: "https://qa.example.test" })).toBe(false);
+    expect(shouldUseLocalE2EState({ NEXT_PUBLIC_FIREBASE_EMULATORS: "false" })).toBe(false);
   });
 
   it("mantiene un contador explícito de los tres usuarios E2E", () => {

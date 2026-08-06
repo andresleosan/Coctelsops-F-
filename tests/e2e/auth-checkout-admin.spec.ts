@@ -4,9 +4,9 @@ import { getFirestore } from "firebase-admin/firestore";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 import { getCleanupSafetyError } from "./cleanup-safety";
-import { loadLocalE2EState } from "./local-state";
+import { loadLocalE2EState, shouldUseLocalE2EState } from "./local-state";
 
-const localE2EState = loadLocalE2EState();
+const localE2EState = shouldUseLocalE2EState() ? loadLocalE2EState() : undefined;
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:9002";
 const customerEmail = process.env.E2E_CUSTOMER_EMAIL ?? localE2EState?.customer.email;
 const customerPassword = process.env.E2E_CUSTOMER_PASSWORD ?? localE2EState?.customer.password;
@@ -63,6 +63,31 @@ async function cleanupE2EState(state: CleanupState): Promise<void> {
 
 test.describe("auth, checkout y operaciones administrativas", () => {
   test.use({ baseURL });
+
+  test.beforeEach(async ({ page }) => {
+    if (shouldUseLocalE2EState()) {
+      const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9099";
+      await page.route(`http://${authEmulatorHost}/**`, async (route) => {
+        const url = new URL(route.request().url());
+        console.log(`[E2E Route] ${route.request().method()} ${url.pathname}`);
+        if (url.pathname.includes("/identitytoolkit.googleapis.com/v1/")) {
+          url.searchParams.set("key", "demo-key");
+          await route.continue({ url: url.toString() });
+          return;
+        }
+        await route.continue();
+      });
+    }
+    page.on("console", (message) => {
+      if (message.type() === "error") console.log(`[E2E Console] ${message.type()}`);
+    });
+    page.on("pageerror", (error) => console.log(`[E2E PageError] ${error.name}`));
+    page.on("response", (response) => {
+      if (response.status() >= 400) {
+        console.log(`[E2E HTTP] ${response.status()} ${new URL(response.url()).pathname}`);
+      }
+    });
+  });
 
   async function login(page: Page, email: string, password: string, path: string) {
     await page.goto(`/login?redirect=${encodeURIComponent(path)}`);
@@ -149,7 +174,8 @@ test.describe("auth, checkout y operaciones administrativas", () => {
       cleanup.orderIds.push(orderId);
       await page.goto("/cuenta/pedidos");
       await expect(page.getByText(new RegExp(`Pedido #${orderId}`))).toBeVisible();
-      await page.getByRole("link", { name: new RegExp(`Pedido #${orderId}`) }).click();
+      await expect(page.getByRole("link", { name: "Ver detalle" })).toHaveCount(1);
+      await page.getByRole("link", { name: "Ver detalle" }).click();
       const popupPromise = page.waitForEvent("popup");
       await page.getByRole("link", { name: "Confirmar por WhatsApp" }).click();
       const popup = await popupPromise;

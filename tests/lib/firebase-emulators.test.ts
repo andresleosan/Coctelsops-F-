@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   assertLoopbackEmulatorHosts,
+  getClientEmulatorHosts,
   shouldUseFirebaseEmulators,
 } from "@/firebase/emulators";
 
@@ -33,6 +34,8 @@ describe("shouldUseFirebaseEmulators", () => {
     delete process.env.NEXT_PUBLIC_FIREBASE_EMULATORS;
     delete process.env.FIRESTORE_EMULATOR_HOST;
     delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
+    delete process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST;
+    delete process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST;
   });
 
   it("requires the explicit client flag set to true", () => {
@@ -58,6 +61,14 @@ describe("shouldUseFirebaseEmulators", () => {
     ).toBe(true);
   });
 
+  it("permite al cliente usar solo hosts públicos loopback", () => {
+    expect(shouldUseFirebaseEmulators({
+      NEXT_PUBLIC_FIREBASE_EMULATORS: "true",
+      NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: "127.0.0.1:18080",
+      NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:19099",
+    })).toBe(true);
+  });
+
   it("returns false when a loopback host is invalid", () => {
     expect(
       shouldUseFirebaseEmulators({
@@ -66,6 +77,34 @@ describe("shouldUseFirebaseEmulators", () => {
         FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
       }),
     ).toBe(false);
+  });
+
+  it("returns false when a public emulator host is remote", () => {
+    expect(
+      shouldUseFirebaseEmulators({
+        NEXT_PUBLIC_FIREBASE_EMULATORS: "true",
+        ...BASE_LOOPBACK,
+        NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: "firestore.example.com:8080",
+        NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
+      }),
+    ).toBe(false);
+  });
+
+  it("uses configurable public hosts and defaults to loopback ports", () => {
+    expect(getClientEmulatorHosts({})).toEqual({
+      firestore: { host: "127.0.0.1", port: 8080 },
+      auth: { host: "127.0.0.1", port: 9099 },
+    });
+    expect(getClientEmulatorHosts({
+      NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: "localhost:18080",
+      NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: "localhost:19099",
+    })).toEqual({
+      firestore: { host: "localhost", port: 18080 },
+      auth: { host: "localhost", port: 19099 },
+    });
+    expect(() => getClientEmulatorHosts({
+      NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: "firestore.example.com:8080",
+    })).toThrow("loopback");
   });
 
   it("reads process.env when no environment is provided", () => {
@@ -154,6 +193,8 @@ describe("getAdminApp en modo emulator", () => {
     delete process.env.FIREBASE_EMULATORS;
     delete process.env.FIRESTORE_EMULATOR_HOST;
     delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
+    delete process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST;
+    delete process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST;
     vi.clearAllMocks();
   });
 

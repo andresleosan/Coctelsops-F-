@@ -6,6 +6,10 @@ import {
   type LocalE2EState,
 } from "../../scripts/e2e-local-state";
 
+export function shouldUseLocalE2EState(environment: Record<string, string | undefined> = process.env): boolean {
+  return environment.NEXT_PUBLIC_FIREBASE_EMULATORS === "true" && environment.E2E_BASE_URL === undefined;
+}
+
 export function loadLocalE2EState(): LocalE2EState | undefined {
   const stateFile = getLocalE2EStatePath();
   if (!existsSync(stateFile)) return undefined;

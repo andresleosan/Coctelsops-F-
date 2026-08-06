@@ -5,7 +5,7 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getAuth, Auth, connectAuthEmulator } from 'firebase/auth';
 import { firebaseConfig } from './config';
-import { shouldUseFirebaseEmulators } from './emulators';
+import { getClientEmulatorHosts, shouldUseFirebaseEmulators } from './emulators';
 
 let emulatorsConnected = false;
 
@@ -13,10 +13,16 @@ export function initializeFirebase(): { app: FirebaseApp; db: Firestore; auth: A
   const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const auth = getAuth(app);
+  const clientEnvironment = {
+    NEXT_PUBLIC_FIREBASE_EMULATORS: process.env.NEXT_PUBLIC_FIREBASE_EMULATORS,
+    NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST,
+    NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST,
+  };
 
-  if (shouldUseFirebaseEmulators() && !emulatorsConnected) {
-    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-    connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  if (shouldUseFirebaseEmulators(clientEnvironment) && !emulatorsConnected) {
+    const hosts = getClientEmulatorHosts(clientEnvironment);
+    connectAuthEmulator(auth, `http://${hosts.auth.host}:${hosts.auth.port}`, { disableWarnings: true });
+    connectFirestoreEmulator(db, hosts.firestore.host, hosts.firestore.port);
     emulatorsConnected = true;
   }
 

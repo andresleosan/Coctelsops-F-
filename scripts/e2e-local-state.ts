@@ -6,8 +6,9 @@ import type { Auth } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
 
 import { assertLoopbackEmulatorHosts } from "../src/firebase/emulators";
+import { isAllowedCatalogImage } from "../src/lib/catalog/image-hosts";
 import { DEFAULT_STORE_CONFIGURATION } from "../src/types/operations";
-import { PRODUCTS } from "../src/app/lib/products";
+import { PRODUCTS, type Product } from "../src/app/lib/products";
 
 export const LOCAL_E2E_ROLES = ["customer", "staff", "admin"] as const;
 export type LocalE2ERole = (typeof LOCAL_E2E_ROLES)[number];
@@ -57,8 +58,6 @@ const ROLE_SEEDS: Record<LocalE2ERole, {
     permissions: [
       "pedidos.read",
       "pedidos.update",
-      "productos.read",
-      "productos.write",
       "categorias.read",
       "categorias.write",
       "clientes.read",
@@ -144,6 +143,13 @@ export function getLocalE2EStatePath(environment: Record<string, string | undefi
 
 export function createLocalE2EPassword(): string {
   return randomBytes(24).toString("hex");
+}
+
+export function getLocalE2EProductImage(product: Pick<Product, "id" | "image">): string {
+  const image = product.image.trim();
+  return image && isAllowedCatalogImage(image)
+    ? image
+    : `https://picsum.photos/seed/e2e-product-${encodeURIComponent(product.id)}/600/600`;
 }
 
 export function createLocalE2EState(timestamp = Date.now()): LocalE2EState {
@@ -320,7 +326,7 @@ export async function prepareLocalE2EState(): Promise<LocalE2EState> {
     }
 
     for (const product of PRODUCTS) {
-      const { id, ...data } = product;
+      const { id, ...data } = { ...product, image: getLocalE2EProductImage(product) };
       await db.collection("productos").doc(id).create({
         ...data,
         [LOCAL_E2E_OWNERSHIP_FIELD]: state.runId,

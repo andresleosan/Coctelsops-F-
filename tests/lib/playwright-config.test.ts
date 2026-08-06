@@ -1,10 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const originalBaseURL = process.env.E2E_BASE_URL;
+const originalFirestoreHost = process.env.FIRESTORE_EMULATOR_HOST;
+const originalAuthHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+const originalPublicFirestoreHost = process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST;
+const originalPublicAuthHost = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST;
 
 afterEach(() => {
   if (originalBaseURL === undefined) delete process.env.E2E_BASE_URL;
   else process.env.E2E_BASE_URL = originalBaseURL;
+  if (originalFirestoreHost === undefined) delete process.env.FIRESTORE_EMULATOR_HOST;
+  else process.env.FIRESTORE_EMULATOR_HOST = originalFirestoreHost;
+  if (originalAuthHost === undefined) delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  else process.env.FIREBASE_AUTH_EMULATOR_HOST = originalAuthHost;
+  if (originalPublicFirestoreHost === undefined) delete process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST;
+  else process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST = originalPublicFirestoreHost;
+  if (originalPublicAuthHost === undefined) delete process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST;
+  else process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST = originalPublicAuthHost;
   vi.resetModules();
 });
 
@@ -38,6 +50,26 @@ describe("configuracion local de Playwright", () => {
       FIREBASE_PROJECT_ID: "demo-coctels-e2e",
       FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080",
       FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
+      NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080",
+      NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
+    });
+  });
+
+  it("usa los hosts públicos configurados para el servidor local", async () => {
+    delete process.env.E2E_BASE_URL;
+    process.env.FIRESTORE_EMULATOR_HOST = "127.0.0.1:18080";
+    process.env.FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:19099";
+    process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST = "127.0.0.1:18080";
+    process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:19099";
+
+    const config = await loadConfig();
+    const webServer = config.webServer;
+
+    expect(webServer && !Array.isArray(webServer) ? webServer.env : undefined).toMatchObject({
+      FIRESTORE_EMULATOR_HOST: "127.0.0.1:18080",
+      FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:19099",
+      NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: "127.0.0.1:18080",
+      NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:19099",
     });
   });
 
