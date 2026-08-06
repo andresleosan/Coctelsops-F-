@@ -64,3 +64,4 @@ La auditoria no se corrigio con `npm audit fix --force`. La salida indica actual
 
 Commit previo: `96e718d docs: documentar QA local con emuladores`.
 Commit de la correccion: `02394cb fix: cerrar QA local de emuladores`.
+Review Fix Round 1: `b678a28 fix: endurecer cierre de QA local`.
