@@ -49,7 +49,7 @@
 
 ### Tarea 4: Integrar
 
-- [ ] Revisar `git status`, `git diff` y `git log --oneline -10`.
-- [ ] Crear un commit conciso con todos los cambios intencionados.
-- [ ] Hacer push de `main` a `origin`.
-- [ ] Verificar que el push terminó correctamente y reportar el commit publicado.
+- [x] Revisar `git status`, `git diff` y `git log --oneline -10`.
+- [x] Crear un commit conciso con todos los cambios intencionados.
+- [x] Hacer push de `main` a `origin`.
+- [x] Verificar que el push terminó correctamente y reportar el commit publicado.
