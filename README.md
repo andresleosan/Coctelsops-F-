@@ -5,27 +5,44 @@ Coctels OPS es una tienda mobile-first de cócteles y un panel operativo constru
 ## Requisitos
 
 - Node.js compatible con Next.js 15 y npm.
-- Firebase CLI para publicar reglas e índices.
+- Firebase CLI para publicar reglas e índices y ejecutar emuladores locales.
+- Java 11 o superior para Firebase Emulator Suite.
 - Un proyecto Firebase separado para desarrollo, staging o producción.
 - Credenciales de Firebase Admin entregadas por un operador autorizado únicamente mediante variables de entorno.
 
 ## Configuración local
 
 1. Instala dependencias: `npm install`.
-2. Copia `.env.example` a `.env.local` y reemplaza todos los valores de ejemplo con la configuración de tu proyecto. No subas `.env.local`.
-3. En Firebase Console habilita Authentication con estos proveedores:
+2. Verifica las herramientas locales: `firebase --version` y `java -version`. Si falta Firebase CLI, instálalo con `npm install --global firebase-tools`; Java 11 o superior es requisito de Firebase Emulator Suite.
+3. Copia `.env.example` a `.env.local` y reemplaza todos los valores de ejemplo con la configuración de tu proyecto. No subas `.env.local`.
+4. En Firebase Console habilita Authentication con estos proveedores:
    - Email/Password.
    - Google, con los dominios autorizados configurados.
    - Verificación de correo y recuperación de contraseña mediante las plantillas de correo de Firebase.
-4. Publica reglas e índices desde el directorio raíz, después de revisar el proyecto seleccionado:
+5. Publica reglas e índices desde el directorio raíz, después de revisar el proyecto seleccionado:
    ```powershell
    firebase login
    firebase projects:list
    firebase deploy --project "$env:FIREBASE_PROJECT_ID" --only firestore:rules,firestore:indexes
    ```
-5. Inicia el servidor: `npm run dev`. La aplicación queda en `http://localhost:9002`.
+6. Inicia el servidor: `npm run dev`. La aplicación queda en `http://localhost:9002`.
 
-`firebase.json` solo referencia `firestore.rules` y `firestore.indexes.json`; no contiene secretos. Para usar el Firebase Emulator Suite, inicia `firebase emulators:start --only auth,firestore` y configura explícitamente la aplicación para apuntar a los emuladores antes de ejecutar una suite de reglas. La aplicación no cambia automáticamente a emuladores por definir esas variables.
+`firebase.json` solo referencia `firestore.rules` y `firestore.indexes.json`; no contiene secretos. El flujo oficial de QA local usa los runners descritos abajo, selecciona puertos loopback dinámicos y crea configuración temporal; no requiere un proyecto Firebase remoto.
+
+## QA local con Firebase Emulator Suite
+
+Ejecuta primero `npm install`, `firebase --version` y `java -version`. Java 11 o superior es requisito del Emulator Suite.
+
+```powershell
+npm run test:firestore-rules
+npm run test:e2e:local
+```
+
+`npm run test:firestore-rules` inicia solo Firestore Emulator, carga las reglas e índices del repositorio y valida cinco casos reales de autorización para cliente, staff y admin. Usa fixtures namespaced, elimina únicamente sus documentos y borra la configuración temporal al finalizar.
+
+`npm run test:e2e:local` inicia Auth y Firestore Emulator en puertos loopback libres, prepara estado y credenciales efímeras, ejecuta los tres escenarios browser locales y ejecuta cleanup aunque haya fallos. El reporte HTML queda en `qa/reports`, los resultados/screenshot/traces en `qa/test-results` y el estado/configuración efímeros en `.tmp/e2e`.
+
+El runner establece únicamente variables locales como `FIREBASE_EMULATORS=true`, `NEXT_PUBLIC_FIREBASE_EMULATORS=true`, `FIREBASE_PROJECT_ID=demo-coctels-e2e`, hosts `127.0.0.1:<puerto>`, `E2E_CLEANUP=true` y `E2E_CLEANUP_CONFIRM=DELETE_E2E_DATA`. No uses credenciales reales. No ejecutes `firebase deploy`, seed ni migraciones desde este flujo; las operaciones remotas necesitan backup y aprobación explícita del operador.
 
 ## Variables de entorno
 
@@ -76,11 +93,13 @@ npm test
 npm run typecheck
 npm run lint
 npm run build
+npm run test:firestore-rules
+npm run test:e2e:local
 ```
 
-Los tests de Vitest excluyen `tests/e2e/**`. La suite Playwright se ejecuta por separado con `npm run test:e2e` y requiere una aplicación levantada, navegadores instalados y estas variables de prueba: `E2E_BASE_URL`, `E2E_CUSTOMER_EMAIL`, `E2E_CUSTOMER_PASSWORD`, `E2E_STAFF_EMAIL`, `E2E_STAFF_PASSWORD`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD` y, para registro, `E2E_REGISTRATION_DOMAIN`. No uses credenciales reales en el archivo de test. En este entorno la ejecución browser E2E está deliberadamente diferida porque Playwright MCP está deshabilitado.
+Los tests de Vitest excluyen `tests/e2e/**`. `npm run test:e2e` sigue siendo la suite externa y requiere una aplicación levantada, navegadores instalados y variables de prueba; `npm run test:e2e:local` es la vía reproducible contra emuladores locales y no necesita proyecto remoto. No uses credenciales reales en archivos de test ni reportes.
 
-La limpieza de datos temporales es opt-in y solo funciona contra emuladores locales: define `E2E_CLEANUP=true`, `E2E_CLEANUP_CONFIRM=DELETE_E2E_DATA`, `FIRESTORE_EMULATOR_HOST=localhost:8080` y `FIREBASE_AUTH_EMULATOR_HOST=localhost:9099`. El hook exige ambos hosts, rechaza cualquier host que no sea `localhost` o `127.0.0.1` y falla cerrado antes de borrar si falta alguna variable. Elimina únicamente los pedidos y usuarios generados en la ejecución emulada. Sin los hosts de emulador y la confirmación explícita no borra nada; no puede apuntar a producción ni a un proyecto Firebase remoto.
+La limpieza de datos temporales solo funciona contra emuladores locales: el runner define `E2E_CLEANUP=true`, `E2E_CLEANUP_CONFIRM=DELETE_E2E_DATA` y hosts loopback dinámicos. El hook exige ambos hosts, rechaza cualquier host que no sea `localhost` o `127.0.0.1` y falla cerrado antes de borrar si falta alguna variable. Elimina únicamente los pedidos y usuarios generados en la ejecución emulada. Sin hosts loopback y confirmación explícita no borra nada; no puede apuntar a producción ni a un proyecto Firebase remoto.
 
 El reporte de release con resultados, riesgos y limitaciones está en `docs/superpowers/reports/2026-08-04-auth-clientes-admin.md`.
 
