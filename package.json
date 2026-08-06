@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "eslint . --ignore-pattern next-env.d.ts --max-warnings=0",
     "test": "vitest run --exclude tests/e2e/**",
+    "test:firestore-rules": "tsx scripts/run-firestore-rules-tests.ts",
     "test:e2e": "playwright test tests/e2e",
     "test:e2e:local": "npx tsx scripts/e2e-local-runner.ts",
     "test:watch": "vitest",
@@ -61,9 +62,10 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "@playwright/test": "^1.51.1",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
-    "@playwright/test": "^1.51.1",
     "@types/node": "^20",
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 const rules = readFileSync("firestore.rules", "utf8");
 
+// Este archivo conserva el contrato estatico; solo la suite con emulator puede
+// demostrar que una lectura o escritura resulta permitida o denegada.
 describe("Firestore ownership contract", () => {
   it("keeps managed writes server-only instead of trusting browser admin claims", () => {
     expect(rules).toContain("match /roles/{roleId} {");

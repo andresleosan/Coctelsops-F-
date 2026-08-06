@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
+const runFirestoreRulesEmulator = process.env.FIRESTORE_RULES_EMULATOR === "true";
 
 export default defineConfig({
   oxc: {
@@ -18,5 +19,11 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
+    include: ["tests/**/*.{test,spec}.?(c|m)[jt]s?(x)"],
+    exclude: [
+      "**/node_modules/**",
+      "tests/e2e/**",
+      ...(runFirestoreRulesEmulator ? [] : ["tests/firestore-rules-emulator.test.ts"]),
+    ],
   },
 });
