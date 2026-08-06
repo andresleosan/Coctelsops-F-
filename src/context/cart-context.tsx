@@ -29,6 +29,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
     const savedCart = localStorage.getItem('granizado_go_cart');
@@ -39,11 +40,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         console.error("Failed to parse cart", e);
       }
     }
+    setIsHydrated(true);
   }, []);
 
   useEffect(() => {
+    if (!isHydrated) return;
     localStorage.setItem('granizado_go_cart', JSON.stringify(items));
-  }, [items]);
+  }, [isHydrated, items]);
 
   const addItem = (newItem: Omit<CartItem, 'id'>) => {
     setItems((prev) => {

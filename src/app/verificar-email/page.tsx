@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { MailCheck } from 'lucide-react';
 
@@ -10,6 +11,7 @@ import { sendVerificationEmail, translateAuthError } from '@/lib/auth-client';
 
 export default function VerifyEmailPage() {
   const { user, isVerified, refreshClaims } = useAuth();
+  const router = useRouter();
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -39,7 +41,7 @@ export default function VerifyEmailPage() {
   const continueToStore = async () => {
     await user.reload();
     await refreshClaims();
-    window.location.href = '/';
+    router.push('/');
   };
 
   return (

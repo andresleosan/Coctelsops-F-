@@ -3,6 +3,7 @@ import { CATALOG_IMAGE_HOSTS } from './src/lib/catalog/image-hosts';
 
 const nextConfig: NextConfig = {
   /* config options here */
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
   onDemandEntries: {
     maxInactiveAge: 60 * 1000,
     pagesBufferLength: 5,
