@@ -1,8 +1,7 @@
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, rmSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import Module from "node:module";
-import os from "node:os";
 import path from "node:path";
 
 import { getLocalE2EStatePath } from "./e2e-local-state";
@@ -19,6 +18,10 @@ export type LocalEmulatorPorts = {
   auth: number;
 };
 
+export type E2ERunnerLock = {
+  dispose: () => void;
+};
+
 type FirebaseEmulatorConfig = {
   firestore: {
     rules: string;
@@ -33,6 +36,45 @@ type FirebaseEmulatorConfig = {
 
 function commandName(command: string): string {
   return process.platform === "win32" ? `${command}.cmd` : command;
+}
+
+function quoteWindowsCommandArgument(value: string): string {
+  if (/^[a-zA-Z0-9_./,:\\-]+$/.test(value)) return value;
+  return `"${value.replace(/["^]/g, (character) => `^${character}`)}"`;
+}
+
+export function acquireE2ERunnerLock(
+  lockPath = path.resolve(process.cwd(), ".tmp/e2e/local-emulator.lock"),
+): E2ERunnerLock {
+  mkdirSync(path.dirname(lockPath), { recursive: true });
+  let descriptor: number | undefined;
+  let created = false;
+  try {
+    descriptor = openSync(lockPath, "wx", 0o600);
+    created = true;
+    writeSync(descriptor, `${process.pid}\n`, undefined, "utf8");
+    closeSync(descriptor);
+  } catch (error: unknown) {
+    try {
+      if (descriptor !== undefined) closeSync(descriptor);
+      if (created) unlinkSync(lockPath);
+    } catch {
+      // No sobrescribir el error original ni tocar un lock ajeno.
+    }
+    if ((error as { code?: string }).code === "EEXIST") {
+      throw new Error("Ya existe un runner E2E local activo; espera a que termine.");
+    }
+    throw error;
+  }
+
+  let disposed = false;
+  return {
+    dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      unlinkSync(lockPath);
+    },
+  };
 }
 
 export function findFreeLoopbackPort(excludedPorts: readonly number[] = []): Promise<number> {
@@ -96,26 +138,39 @@ export function createFirebaseEmulatorConfig(ports: LocalEmulatorPorts): Firebas
   };
 }
 
-function createTemporaryFirebaseConfig(ports: LocalEmulatorPorts): { filePath: string; dispose: () => void } {
-  const directory = mkdtempSync(path.join(os.tmpdir(), "coctels-e2e-firebase-"));
-  const filePath = path.join(directory, "firebase.json");
-  writeFileSync(filePath, `${JSON.stringify(createFirebaseEmulatorConfig(ports), null, 2)}\n`, {
+function createTemporaryFirebaseConfig(ports: LocalEmulatorPorts): { filePath: string; scriptPath: string; dispose: () => void } {
+  const temporaryRoot = path.resolve(process.cwd(), ".tmp/e2e");
+  mkdirSync(temporaryRoot, { recursive: true });
+  const directory = mkdtempSync(path.join(temporaryRoot, "firebase-"));
+  const absoluteConfigPath = path.join(directory, "firebase.json");
+  const absoluteScriptPath = path.join(directory, "run-e2e.cmd");
+  writeFileSync(absoluteConfigPath, `${JSON.stringify(createFirebaseEmulatorConfig(ports), null, 2)}\n`, {
     encoding: "utf8",
     mode: 0o600,
   });
+  writeFileSync(absoluteScriptPath, "@echo off\r\ncall npx tsx scripts/e2e-local-runner.ts --inside-emulators\r\nexit /b %errorlevel%\r\n", {
+    encoding: "utf8",
+    mode: 0o700,
+  });
 
   return {
-    filePath,
+    filePath: path.relative(process.cwd(), absoluteConfigPath),
+    scriptPath: path.relative(process.cwd(), absoluteScriptPath),
     dispose: () => rmSync(directory, { recursive: true, force: true }),
   };
 }
 
 function run(command: string, args: string[], environment: Environment): Promise<number> {
   return new Promise((resolve, reject) => {
-    const child = spawn(commandName(command), args, {
+    const executable = process.platform === "win32" ? process.env.ComSpec ?? "cmd.exe" : commandName(command);
+    const spawnArgs = process.platform === "win32"
+      // Los .cmd requieren cmd.exe en Windows; shell:false evita la concatenación implícita de Node.
+      ? ["/d", "/c", `call ${[commandName(command), ...args].map(quoteWindowsCommandArgument).join(" ")}`]
+      : args;
+    const child = spawn(executable, spawnArgs, {
       env: environment as NodeJS.ProcessEnv,
       stdio: "inherit",
-      shell: process.platform === "win32",
+      shell: false,
     });
 
     child.once("error", reject);
@@ -186,19 +241,19 @@ async function requireLocalE2EState() {
 }
 
 async function runWithEmulators(): Promise<number> {
-  const firestorePort = await findFreeLoopbackPort();
-  const authPort = await findFreeLoopbackPort([firestorePort]);
-  const environment = createLocalE2EEnvironment(process.env, {
-    firestore: firestorePort,
-    auth: authPort,
-  });
-  const temporaryConfig = createTemporaryFirebaseConfig({
-    firestore: firestorePort,
-    auth: authPort,
-  });
-  const command = "npx tsx scripts/e2e-local-runner.ts --inside-emulators";
-  const scriptArgument = process.platform === "win32" ? `"${command}"` : command;
+  const lock = acquireE2ERunnerLock();
+  let temporaryConfig: { filePath: string; scriptPath: string; dispose: () => void } | undefined;
   try {
+    const firestorePort = await findFreeLoopbackPort();
+    const authPort = await findFreeLoopbackPort([firestorePort]);
+    const environment = createLocalE2EEnvironment(process.env, {
+      firestore: firestorePort,
+      auth: authPort,
+    });
+    temporaryConfig = createTemporaryFirebaseConfig({
+      firestore: firestorePort,
+      auth: authPort,
+    });
     return await run("firebase", [
       "emulators:exec",
       "--config",
@@ -209,10 +264,11 @@ async function runWithEmulators(): Promise<number> {
       "auth,firestore",
       "--project",
       emulatorProject,
-      scriptArgument,
+      process.platform === "win32" ? temporaryConfig.scriptPath : "npx tsx scripts/e2e-local-runner.ts --inside-emulators",
     ], environment);
   } finally {
-    temporaryConfig.dispose();
+    temporaryConfig?.dispose();
+    lock.dispose();
   }
 }
 

@@ -52,11 +52,12 @@ describe("shouldUseFirebaseEmulators", () => {
     expect(shouldUseFirebaseEmulators({ ...BASE_LOOPBACK })).toBe(false);
   });
 
-  it("returns true only when the flag is exactly 'true' and both hosts are loopback", () => {
+  it("returns true only when the flag is exactly 'true' and both hosts públicos are loopback", () => {
     expect(
       shouldUseFirebaseEmulators({
         NEXT_PUBLIC_FIREBASE_EMULATORS: "true",
-        ...BASE_LOOPBACK,
+        NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080",
+        NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
       }),
     ).toBe(true);
   });
@@ -69,32 +70,33 @@ describe("shouldUseFirebaseEmulators", () => {
     })).toBe(true);
   });
 
-  it("returns false when a loopback host is invalid", () => {
-    expect(
-      shouldUseFirebaseEmulators({
-        NEXT_PUBLIC_FIREBASE_EMULATORS: "true",
-        FIRESTORE_EMULATOR_HOST: "0.0.0.0:8080",
-        FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
-      }),
-    ).toBe(false);
+  it("falla cerrado cuando faltan hosts públicos con la bandera activa", () => {
+    expect(() => shouldUseFirebaseEmulators({
+      NEXT_PUBLIC_FIREBASE_EMULATORS: "true",
+    })).toThrow("loopback");
   });
 
-  it("returns false when a public emulator host is remote", () => {
-    expect(
-      shouldUseFirebaseEmulators({
-        NEXT_PUBLIC_FIREBASE_EMULATORS: "true",
-        ...BASE_LOOPBACK,
-        NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: "firestore.example.com:8080",
-        NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
-      }),
-    ).toBe(false);
+  it("falla cerrado cuando un host público es inválido", () => {
+    expect(() => shouldUseFirebaseEmulators({
+      NEXT_PUBLIC_FIREBASE_EMULATORS: "true",
+      NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: "0.0.0.0:8080",
+      NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
+    })).toThrow("loopback");
   });
 
-  it("uses configurable public hosts and defaults to loopback ports", () => {
-    expect(getClientEmulatorHosts({})).toEqual({
-      firestore: { host: "127.0.0.1", port: 8080 },
-      auth: { host: "127.0.0.1", port: 9099 },
-    });
+  it("falla cerrado cuando un host público es remoto", () => {
+    expect(() => shouldUseFirebaseEmulators({
+      NEXT_PUBLIC_FIREBASE_EMULATORS: "true",
+      NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: "firestore.example.com:8080",
+      NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
+    })).toThrow("loopback");
+  });
+
+  it("usa solamente hosts públicos y no lee variables privadas", () => {
+    expect(() => getClientEmulatorHosts({
+      FIRESTORE_EMULATOR_HOST: "firestore.example.com:8080",
+      FIREBASE_AUTH_EMULATOR_HOST: "auth.example.com:9099",
+    })).toThrow("loopback");
     expect(getClientEmulatorHosts({
       NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: "localhost:18080",
       NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST: "localhost:19099",
@@ -109,8 +111,8 @@ describe("shouldUseFirebaseEmulators", () => {
 
   it("reads process.env when no environment is provided", () => {
     process.env.NEXT_PUBLIC_FIREBASE_EMULATORS = "true";
-    process.env.FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
-    process.env.FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099";
+    process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
+    process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099";
     expect(shouldUseFirebaseEmulators()).toBe(true);
   });
 });

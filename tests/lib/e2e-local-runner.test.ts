@@ -1,9 +1,14 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
   createFirebaseEmulatorConfig,
   createLocalE2EEnvironment,
   findFreeLoopbackPort,
+  acquireE2ERunnerLock,
 } from "../../scripts/e2e-local-runner";
 
 describe("runner E2E local", () => {
@@ -47,5 +52,18 @@ describe("runner E2E local", () => {
       firestore: { host: "127.0.0.1", port: 18_080 },
       singleProjectMode: true,
     });
+  });
+
+  it("impide dos runners simultáneos y libera el lock al terminar", () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "coctels-e2e-lock-"));
+    const lockPath = path.join(directory, "runner.lock");
+    const first = acquireE2ERunnerLock(lockPath);
+
+    expect(() => acquireE2ERunnerLock(lockPath)).toThrow("runner E2E local");
+    first.dispose();
+
+    const second = acquireE2ERunnerLock(lockPath);
+    second.dispose();
+    rmSync(directory, { recursive: true, force: true });
   });
 });

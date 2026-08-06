@@ -1,8 +1,6 @@
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1"]);
 const PORT_MIN = 1;
 const PORT_MAX = 65535;
-export const DEFAULT_FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
-export const DEFAULT_AUTH_EMULATOR_HOST = "127.0.0.1:9099";
 
 const EMULATOR_HOST_VARS = [
   "FIRESTORE_EMULATOR_HOST",
@@ -63,24 +61,24 @@ export function assertLoopbackEmulatorHosts(
   }
 }
 
+function assertClientLoopbackHost(name: string, value: string | undefined): asserts value is string {
+  if (!parseLoopbackPort(value)) {
+    throw new Error(
+      `El host ${name} debe ser loopback (localhost o 127.0.0.1) con puerto entre 1 y 65535. Valor recibido: "${value ?? ""}"`,
+    );
+  }
+}
+
 export function getClientEmulatorHosts(
   environment: Record<string, string | undefined> = process.env,
 ): {
   firestore: { host: "localhost" | "127.0.0.1"; port: number };
   auth: { host: "localhost" | "127.0.0.1"; port: number };
 } {
-  const firestoreHost = environment.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST
-    ?? environment.FIRESTORE_EMULATOR_HOST
-    ?? DEFAULT_FIRESTORE_EMULATOR_HOST;
-  const authHost = environment.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST
-    ?? environment.FIREBASE_AUTH_EMULATOR_HOST
-    ?? DEFAULT_AUTH_EMULATOR_HOST;
-  const hosts = {
-    FIRESTORE_EMULATOR_HOST: firestoreHost,
-    FIREBASE_AUTH_EMULATOR_HOST: authHost,
-  };
-
-  assertLoopbackEmulatorHosts(hosts);
+  const firestoreHost = environment.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST;
+  const authHost = environment.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST;
+  assertClientLoopbackHost("NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST", firestoreHost);
+  assertClientLoopbackHost("NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST", authHost);
   return {
     firestore: parseEmulatorHost(firestoreHost),
     auth: parseEmulatorHost(authHost),
@@ -96,11 +94,6 @@ export function shouldUseFirebaseEmulators(
     return false;
   }
 
-  try {
-    getClientEmulatorHosts(env);
-  } catch {
-    return false;
-  }
-
+  getClientEmulatorHosts(env);
   return true;
 }
