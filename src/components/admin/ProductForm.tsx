@@ -19,6 +19,7 @@ export function ProductForm({ product }: { product?: Product }) {
   const [form, setForm] = useState<ProductInput>(product ? { ...product } : emptyProduct);
   const [flavors, setFlavors] = useState(product?.availableFlavors.join(", ") ?? "");
   const [addOns, setAddOns] = useState(product?.availableAddOns.map((item) => `${item.name}:${item.price}`).join(", ") ?? "");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -32,7 +33,7 @@ export function ProductForm({ product }: { product?: Product }) {
     };
     const parsed = productInputSchema.safeParse(input);
     if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Revisa los datos del producto."); return; }
-    if (!user) return;
+    if (!user || saving) return;
     setSaving(true);
     try {
       const response = await fetch(product ? `/api/admin/productos/${encodeURIComponent(product.id)}` : "/api/admin/productos", {
@@ -40,8 +41,19 @@ export function ProductForm({ product }: { product?: Product }) {
         headers: { "content-type": "application/json", Authorization: `Bearer ${await user.getIdToken()}` },
         body: JSON.stringify(parsed.data),
       });
-      const body = await response.json().catch(() => ({})) as { error?: string };
+      const body = await response.json().catch(() => ({})) as { error?: string; id?: string; product?: Product };
       if (!response.ok) throw new Error(body.error ?? "No se pudo guardar el producto.");
+      if (product && imageFile) {
+        const imageData = new FormData();
+        imageData.append("image", imageFile);
+        const imageResponse = await fetch(`/api/admin/productos/${encodeURIComponent(product.id)}/image`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+          body: imageData,
+        });
+        const imageBody = await imageResponse.json().catch(() => ({})) as { error?: string };
+        if (!imageResponse.ok) throw new Error(imageBody.error ?? "No se pudo reemplazar la imagen.");
+      }
       router.push("/admin/productos");
       router.refresh();
     } catch (saveError) {
@@ -56,7 +68,8 @@ export function ProductForm({ product }: { product?: Product }) {
       <div className="space-y-2"><Label htmlFor="product-name">Nombre</Label><Input id="product-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></div>
       <div className="space-y-2"><Label htmlFor="product-price">Precio</Label><Input id="product-price" type="number" min="1" value={form.price} onChange={(event) => setForm({ ...form, price: Number(event.target.value) })} required /></div>
       <div className="space-y-2 md:col-span-2"><Label htmlFor="product-description">Descripción</Label><Textarea id="product-description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} required /></div>
-      <div className="space-y-2"><Label htmlFor="product-image">Imagen (URL permitida)</Label><Input id="product-image" type="url" value={form.image} onChange={(event) => setForm({ ...form, image: event.target.value })} required /></div>
+       <div className="space-y-2"><Label htmlFor="product-image">Imagen (URL permitida)</Label><Input id="product-image" type="url" value={form.image} onChange={(event) => setForm({ ...form, image: event.target.value })} required={!product} /><p className="text-xs text-muted-foreground">Los productos nuevos requieren una URL hasta tener un ID.</p></div>
+       {product && <div className="space-y-2"><Label htmlFor="product-image-file">Reemplazar imagen</Label><Input id="product-image-file" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /><p className="text-xs text-muted-foreground">JPEG, PNG o WebP de máximo 5 MB.</p></div>}
       <div className="space-y-2"><Label htmlFor="product-category">Categoría</Label><select id="product-category" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as ProductInput["category"] })} className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="granizado">Granizado</option><option value="cocktail">Cóctel</option><option value="special">Especial</option></select></div>
       <div className="space-y-2"><Label htmlFor="product-stock">Stock</Label><Input id="product-stock" type="number" min="0" value={form.stock} onChange={(event) => setForm({ ...form, stock: Number(event.target.value) })} /></div>
       <div className="space-y-2"><Label htmlFor="product-flavors">Sabores (separados por coma)</Label><Input id="product-flavors" value={flavors} onChange={(event) => setFlavors(event.target.value)} /></div>
