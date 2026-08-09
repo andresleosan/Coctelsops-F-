@@ -1,17 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { save, file } = vi.hoisted(() => ({ save: vi.fn(), file: vi.fn() }));
+const { save, file, readFile, stat } = vi.hoisted(() => ({ save: vi.fn(), file: vi.fn(), readFile: vi.fn(), stat: vi.fn() }));
 const bucket = { name: "example.firebasestorage.app", file };
 
 vi.mock("@/lib/firebase-admin", () => ({ getAdminStorageBucket: () => bucket }));
+vi.mock("node:fs/promises", () => ({ default: { readFile, stat }, readFile, stat }));
 
-import { uploadProductImageBytes } from "@/lib/catalog/storage";
+import { uploadProductImageBytes, validateLocalProductImage } from "@/lib/catalog/storage";
 
 describe("Storage de imágenes de catálogo", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     file.mockReturnValue({ save });
     save.mockResolvedValue(undefined);
+    stat.mockResolvedValue({ isFile: () => true, size: 4 });
   });
 
   it.each([
@@ -49,5 +51,23 @@ describe("Storage de imágenes de catálogo", () => {
   it("rechaza bytes arbitrarios aunque MIME y extensión sean válidos", async () => {
     await expect(uploadProductImageBytes({ bytes: new Uint8Array([1, 2, 3]), filename: "fresa.jpg", contentType: "image/jpeg" }, "fresa-salvaje")).rejects.toMatchObject({ status: 422 });
     expect(save).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["JPEG", "fresa.jpg", "image/jpeg", [0xff, 0xd8, 0xff, 0xd9]],
+    ["PNG", "fresa.png", "image/png", [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+    ["WebP", "fresa.webp", "image/webp", [0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50]],
+  ])("el dry-run acepta bytes locales reales de %s", async (_format, filename, _contentType, bytes) => {
+    readFile.mockResolvedValueOnce(Buffer.from(bytes));
+    stat.mockResolvedValueOnce({ isFile: () => true, size: bytes.length });
+
+    await expect(validateLocalProductImage(filename)).resolves.toBeUndefined();
+  });
+
+  it("el dry-run rechaza bytes locales arbitrarios con extensión válida", async () => {
+    readFile.mockResolvedValueOnce(Buffer.from([1, 2, 3]));
+    stat.mockResolvedValueOnce({ isFile: () => true, size: 3 });
+
+    await expect(validateLocalProductImage("fresa.jpg")).rejects.toMatchObject({ status: 422 });
   });
 });

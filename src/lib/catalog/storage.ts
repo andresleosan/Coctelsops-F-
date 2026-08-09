@@ -79,8 +79,11 @@ export async function validateLocalProductImage(imageFile: string): Promise<void
   const imagePath = resolveLocalImagePath(imageFile);
   const imageStats = await stat(imagePath);
   if (!imageStats.isFile()) throw new CatalogImageError("El archivo de imagen no es válido");
-  contentTypeForFilename(imageFile);
+  const contentType = contentTypeForFilename(imageFile);
   if (imageStats.size > MAX_IMAGE_BYTES) throw new CatalogImageError("La imagen supera el máximo de 5 MB", 413);
+  const bytes = new Uint8Array(await readFile(imagePath));
+  if (bytes.byteLength > MAX_IMAGE_BYTES) throw new CatalogImageError("La imagen supera el máximo de 5 MB", 413);
+  validateProductImageContent(bytes, contentType);
 }
 
 export async function uploadProductImageBytes(
