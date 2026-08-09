@@ -302,7 +302,7 @@ Expected: FAIL because the current carousel hardcodes missing `/Fresa.png`-style
 
 - [ ] **Step 3: Implement the shared source**
 
-Pass `featuredProducts` already loaded by `Home` into `CocktailCarousel`; filter active/featured products, use each `product.image`, and render the controlled fallback when the list is empty. Update `ProductCard` to use the same non-broken fallback policy rather than `picsum.photos` when `image` is empty.
+Pass `featuredProducts` already loaded by `Home` into `CocktailCarousel`; filter active/featured products, use each `product.image`, and render the controlled fallback when the list is empty. Update `ProductCard` to use the same non-broken fallback policy rather than a random external image when `image` is empty.
 
 - [ ] **Step 4: Run component tests and build**
 

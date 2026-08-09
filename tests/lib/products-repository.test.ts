@@ -36,7 +36,7 @@ const productInput = {
   name: "Fresa Salvaje",
   description: "Granizado de fresa natural.",
   price: 8500,
-  image: "https://picsum.photos/seed/fresa/600/600",
+  image: "/catalog-placeholder.svg",
   category: "granizado" as const,
   availableFlavors: ["Fresa"],
   availableAddOns: [{ name: "Gomitas", price: 1500 }],

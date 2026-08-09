@@ -50,6 +50,20 @@ function assertImageInput(input: { bytes: Uint8Array; filename: string; contentT
   const expectedContentType = contentTypeForFilename(input.filename);
   if (input.contentType !== expectedContentType) throw new CatalogImageError("El tipo de imagen no coincide con el archivo");
   if (input.bytes.byteLength > MAX_IMAGE_BYTES) throw new CatalogImageError("La imagen supera el máximo de 5 MB", 413);
+  validateProductImageContent(input.bytes, input.contentType);
+}
+
+export function validateProductImageContent(bytes: Uint8Array, contentType: string): void {
+  const hasPrefix = (prefix: number[], offset = 0): boolean => prefix.every((value, index) => bytes[offset + index] === value);
+  const isValid = contentType === "image/jpeg"
+    ? hasPrefix([0xff, 0xd8, 0xff])
+    : contentType === "image/png"
+      ? hasPrefix([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+      : contentType === "image/webp"
+        ? hasPrefix([0x52, 0x49, 0x46, 0x46]) && hasPrefix([0x57, 0x45, 0x42, 0x50], 8)
+        : false;
+
+  if (!isValid) throw new CatalogImageError("El contenido no corresponde a una imagen JPEG, PNG o WebP válida");
 }
 
 function resolveLocalImagePath(imageFile: string): string {

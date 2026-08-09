@@ -1,6 +1,6 @@
 import { requirePermission } from "@/lib/auth/permissions";
 import { toAuthorizationResponse } from "@/lib/auth/verify-request";
-import { CatalogImageError, uploadProductImageBytes } from "@/lib/catalog/storage";
+import { CatalogImageError, uploadProductImageBytes, validateProductImageContent } from "@/lib/catalog/storage";
 import { getProductById, updateProductImage } from "@/lib/firestore/products";
 import path from "node:path";
 
@@ -32,8 +32,10 @@ export async function POST(request: Request, context: Context): Promise<Response
       return Response.json({ error: "Solo se aceptan imágenes JPEG, PNG o WebP" }, { status: 422 });
     }
 
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    validateProductImageContent(bytes, file.type);
     const image = await uploadProductImageBytes({
-      bytes: new Uint8Array(await file.arrayBuffer()),
+      bytes,
       filename: file.name,
       contentType: file.type,
     }, id);

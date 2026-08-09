@@ -149,7 +149,7 @@ export function getLocalE2EProductImage(product: Pick<Product, "id" | "image">):
   const image = product.image.trim();
   return image && isAllowedCatalogImage(image)
     ? image
-    : `https://picsum.photos/seed/e2e-product-${encodeURIComponent(product.id)}/600/600`;
+    : "/catalog-placeholder.svg";
 }
 
 export function createLocalE2EState(timestamp = Date.now()): LocalE2EState {

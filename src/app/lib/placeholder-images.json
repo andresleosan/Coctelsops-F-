@@ -4,37 +4,37 @@
     {
       "id": "logo-ops",
       "description": "Logo circular oficial Coctels OPS: texto 'LOS ORIGINALES' en cian neón, 'COCTELS' en magenta neón, 'OPS' en blanco gigante, con cornucopias blancas en la base sobre fondo negro circular",
-      "imageUrl": "https://picsum.photos/seed/ops-official-branding/600/600",
+      "imageUrl": "/catalog-placeholder.svg",
       "imageHint": "neon logo"
     },
     {
       "id": "hero-granizado",
       "description": "Granizado de fresa y mango con luces neón y frutas frescas en un ambiente nocturno de Medellín",
-      "imageUrl": "https://picsum.photos/seed/ops-granizado-night/1200/800",
+      "imageUrl": "/catalog-placeholder.svg",
       "imageHint": "neon cocktail"
     },
     {
       "id": "delivery-info",
       "description": "Motocicleta de domicilios neón en la ciudad de noche",
-      "imageUrl": "https://picsum.photos/seed/ops-delivery-service/800/600",
+      "imageUrl": "/catalog-placeholder.svg",
       "imageHint": "delivery motorcycle"
     },
     {
       "id": "product-strawberry",
       "description": "Granizado de fresa con fruta picada y brillo neón",
-      "imageUrl": "https://picsum.photos/seed/ops-product-fresa/600/600",
+      "imageUrl": "/catalog-placeholder.svg",
       "imageHint": "strawberry drink"
     },
     {
       "id": "product-mango",
       "description": "Granizado de mango biche colombiano con sal y limón",
-      "imageUrl": "https://picsum.photos/seed/ops-product-mango/600/600",
+      "imageUrl": "/catalog-placeholder.svg",
       "imageHint": "mango granizado"
     },
     {
       "id": "product-coco",
       "description": "Granizado de coco y piña tropical con cerezas",
-      "imageUrl": "https://picsum.photos/seed/ops-product-coco/600/600",
+      "imageUrl": "/catalog-placeholder.svg",
       "imageHint": "coconut drink"
     }
   ]

@@ -53,8 +53,8 @@ describe("estado E2E local", () => {
     expect(images).toHaveLength(PRODUCTS.length);
     expect(images.every((image) => image.trim().length > 0 && isAllowedCatalogImage(image))).toBe(true);
     expect(images[0]).toBe(PRODUCTS[0].image);
-    expect(images[3]).toBe("https://picsum.photos/seed/e2e-product-4/600/600");
-    expect(images[4]).toBe("https://picsum.photos/seed/e2e-product-5/600/600");
+    expect(images[3]).toBe("/catalog-placeholder.svg");
+    expect(images[4]).toBe("/catalog-placeholder.svg");
   });
 
   it("solo permite cargar el estado local con emuladores y sin E2E_BASE_URL", () => {

@@ -6,7 +6,7 @@ const validProduct = {
   name: "Fresa Salvaje",
   description: "Granizado de fresa natural.",
   price: 8500,
-  image: "https://picsum.photos/seed/fresa/600/600",
+  image: "/catalog-placeholder.svg",
   category: "granizado",
   availableFlavors: ["Fresa", "Mora"],
   availableAddOns: [{ name: "Gomitas", price: 1500 }],
@@ -21,7 +21,7 @@ describe("productInputSchema", () => {
   });
 
   it("acepta dos puntos en la ruta de una imagen permitida", () => {
-    const product = { ...validProduct, image: "https://picsum.photos/seed/foo:123/image.png" };
+    const product = { ...validProduct, image: "https://firebasestorage.googleapis.com/v0/b/example/o/catalog%2Fproducts%2Ffresa%2Ffoo:123.png?alt=media&token=token" };
 
     expect(productInputSchema.parse(product)).toEqual(product);
   });
@@ -33,6 +33,13 @@ describe("productInputSchema", () => {
     })).toEqual(expect.objectContaining({ image: expect.stringContaining("firebasestorage.googleapis.com") }));
   });
 
+  it("rechaza URLs de fotos aleatorias", () => {
+    expect(() => productInputSchema.parse({
+      ...validProduct,
+      image: "https://picsum.photos/seed/fresa/600/600",
+    })).toThrow();
+  });
+
   it.each([
     ["precio cero", { price: 0 }],
     ["precio negativo", { price: -1 }],
@@ -42,7 +49,7 @@ describe("productInputSchema", () => {
     ["imagen mal formada", { image: "not-a-url" }],
     ["imagen con host relativo", { image: "//example.com/image.png" }],
     ["host de imagen no configurado", { image: "https://example.com/image.png" }],
-    ["host permitido con puerto", { image: "https://picsum.photos:8443/image.png" }],
+    ["host permitido con puerto", { image: "https://firebasestorage.googleapis.com:8443/image.png" }],
   ])("rechaza %s", (_case, override) => {
     expect(() => productInputSchema.parse({ ...validProduct, ...override })).toThrow();
   });

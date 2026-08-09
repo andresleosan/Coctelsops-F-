@@ -26,7 +26,7 @@ describe("auditoría de creación de pedidos", () => {
     collection.mockImplementation((name: string) => ({
       doc: () => name === "pedidos" ? orderReference : name === "auditoria" ? auditReference : name === "inventario_movimientos" ? movementReference : name === "notificaciones" ? notificationReference : productReference,
     }));
-    const product = { id: "fresa", name: "Fresa", description: "", price: 10000, image: "https://picsum.photos/seed/fresa/600/600", category: "granizado", availableFlavors: [], availableAddOns: [], stock: 10, active: true, featured: false };
+    const product = { id: "fresa", name: "Fresa", description: "", price: 10000, image: "/catalog-placeholder.svg", category: "granizado", availableFlavors: [], availableAddOns: [], stock: 10, active: true, featured: false };
     transactionGet.mockImplementation(async (reference: { id: string }) => reference === orderReference ? { exists: false } : { exists: true, data: () => product });
     runTransaction.mockImplementation(async (callback: (transaction: unknown) => Promise<unknown>) => callback({ create: transactionCreate, update: vi.fn(), get: transactionGet }));
     getProductById.mockResolvedValue(product);

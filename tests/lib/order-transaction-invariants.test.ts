@@ -35,7 +35,7 @@ describe("creación transaccional de pedidos", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     collection.mockImplementation((name: keyof typeof references) => ({ doc: () => references[name] }));
-    const product = { id: "fresa", name: "Fresa", description: "", price: 10000, image: "https://picsum.photos/seed/fresa/600/600", category: "granizado", availableFlavors: [], availableAddOns: [], stock: 10, active: true, featured: false };
+    const product = { id: "fresa", name: "Fresa", description: "", price: 10000, image: "/catalog-placeholder.svg", category: "granizado", availableFlavors: [], availableAddOns: [], stock: 10, active: true, featured: false };
     getProductById.mockResolvedValue(product);
     productFromData.mockReturnValue(product);
     transactionGet.mockImplementation(async (reference: { id: string }) => reference === references.pedidos
@@ -60,7 +60,7 @@ describe("creación transaccional de pedidos", () => {
   });
 
   it("recalcula el precio con el producto transaccional y rechaza stock agotado concurrentemente", async () => {
-    const staleProduct = { id: "fresa", name: "Fresa", description: "", price: 10000, image: "https://picsum.photos/seed/fresa/600/600", category: "granizado", availableFlavors: [], availableAddOns: [], stock: 10, active: true, featured: false };
+    const staleProduct = { id: "fresa", name: "Fresa", description: "", price: 10000, image: "/catalog-placeholder.svg", category: "granizado", availableFlavors: [], availableAddOns: [], stock: 10, active: true, featured: false };
     const currentProduct = { ...staleProduct, price: 12000, stock: 1 };
     getProductById.mockResolvedValue(staleProduct);
     productFromData.mockReturnValue(currentProduct);

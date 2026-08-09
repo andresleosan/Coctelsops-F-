@@ -26,7 +26,7 @@ describe("Storage de imágenes de catálogo", () => {
 
   it("guarda la imagen bajo el prefijo del producto con metadatos seguros", async () => {
     const url = await uploadProductImageBytes({
-      bytes: new Uint8Array([1, 2, 3]),
+      bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
       filename: "fresa.jpg",
       contentType: "image/jpeg",
     }, "fresa-salvaje");
@@ -36,5 +36,18 @@ describe("Storage de imágenes de catálogo", () => {
       metadata: expect.objectContaining({ contentType: "image/jpeg", metadata: expect.objectContaining({ firebaseStorageDownloadTokens: expect.any(String) }) }),
     }));
     expect(url).toContain("catalog%2Fproducts%2Ffresa-salvaje%2Ffresa.jpg");
+  });
+
+  it.each([
+    ["JPEG", "fresa.jpg", "image/jpeg", [0xff, 0xd8, 0xff, 0xd9]],
+    ["PNG", "fresa.png", "image/png", [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+    ["WebP", "fresa.webp", "image/webp", [0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50]],
+  ])("acepta bytes reales de %s", async (_format, filename, contentType, bytes) => {
+    await expect(uploadProductImageBytes({ bytes: new Uint8Array(bytes), filename, contentType }, "fresa-salvaje")).resolves.toContain("catalog%2Fproducts%2Ffresa-salvaje");
+  });
+
+  it("rechaza bytes arbitrarios aunque MIME y extensión sean válidos", async () => {
+    await expect(uploadProductImageBytes({ bytes: new Uint8Array([1, 2, 3]), filename: "fresa.jpg", contentType: "image/jpeg" }, "fresa-salvaje")).rejects.toMatchObject({ status: 422 });
+    expect(save).not.toHaveBeenCalled();
   });
 });

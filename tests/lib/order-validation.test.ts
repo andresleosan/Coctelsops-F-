@@ -14,7 +14,7 @@ const product: Product = {
   name: "Fresa Salvaje",
   description: "Granizado de fresa.",
   price: 10000,
-  image: "https://picsum.photos/seed/fresa/600/600",
+  image: "/catalog-placeholder.svg",
   category: "granizado",
   availableFlavors: ["Fresa", "Mango"],
   availableAddOns: [{ name: "Gomitas", price: 1500 }],

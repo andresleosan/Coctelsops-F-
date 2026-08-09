@@ -11,8 +11,8 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 export default async function Home() {
   const featuredProducts = await getFeaturedProducts();
   
-  const heroImage = PlaceHolderImages.find(img => img.id === 'hero-granizado')?.imageUrl || 'https://picsum.photos/seed/ops-hero/1200/800';
-  const logoImage = PlaceHolderImages.find(img => img.id === 'logo-ops')?.imageUrl || 'https://picsum.photos/seed/ops-logo/600/600';
+  const heroImage = PlaceHolderImages.find(img => img.id === 'hero-granizado')?.imageUrl || '/catalog-placeholder.svg';
+  const logoImage = PlaceHolderImages.find(img => img.id === 'logo-ops')?.imageUrl || '/catalog-placeholder.svg';
   return (
     <div className="flex flex-col gap-12 md:gap-20 pb-20 bg-background text-white">
       {/* Hero Section */}

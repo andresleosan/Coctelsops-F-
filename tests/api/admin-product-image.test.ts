@@ -11,7 +11,10 @@ vi.mock("@/lib/auth/permissions", () => ({ requirePermission }));
 vi.mock("@/lib/auth/verify-request", () => ({
   toAuthorizationResponse: (error: Error & { status?: number }) => Response.json({ error: error.message }, { status: error.status ?? 500 }),
 }));
-vi.mock("@/lib/catalog/storage", () => ({ CatalogImageError: class CatalogImageError extends Error {}, uploadProductImageBytes }));
+vi.mock("@/lib/catalog/storage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/catalog/storage")>()),
+  uploadProductImageBytes,
+}));
 vi.mock("@/lib/firestore/products", () => ({ updateProductImage, getProductById }));
 
 import { POST } from "@/app/api/admin/productos/[id]/image/route";
@@ -56,11 +59,18 @@ describe("POST /api/admin/productos/:id/image", () => {
   });
 
   it("sube primero y actualiza solo la imagen con auditoría", async () => {
-    const response = await POST(requestWithFile({ body: new Uint8Array([1, 2, 3]), name: "fresa.jpg", type: "image/jpeg" }), { params: Promise.resolve({ id: "fresa-salvaje" }) });
+    const response = await POST(requestWithFile({ body: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), name: "fresa.jpg", type: "image/jpeg" }), { params: Promise.resolve({ id: "fresa-salvaje" }) });
 
     expect(response.status).toBe(200);
     expect(uploadProductImageBytes).toHaveBeenCalledWith({ bytes: expect.any(Uint8Array), filename: "fresa.jpg", contentType: "image/jpeg" }, "fresa-salvaje");
     expect(updateProductImage).toHaveBeenCalledWith("fresa-salvaje", "https://firebasestorage.googleapis.com/new-image", actor.uid);
     await expect(response.json()).resolves.toEqual({ product: { ...product, image: "https://firebasestorage.googleapis.com/new-image" } });
+  });
+
+  it("rechaza bytes arbitrarios aunque el MIME y la extensión sean JPEG", async () => {
+    const response = await POST(requestWithFile({ body: new Uint8Array([1, 2, 3]), name: "fresa.jpg", type: "image/jpeg" }), { params: Promise.resolve({ id: "fresa-salvaje" }) });
+
+    expect(response.status).toBe(422);
+    expect(uploadProductImageBytes).not.toHaveBeenCalled();
   });
 });

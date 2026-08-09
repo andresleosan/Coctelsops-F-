@@ -47,7 +47,7 @@ export default function CartPage() {
             <Card key={item.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-shadow bg-card/40">
               <CardContent className="p-4 flex gap-4">
                 <div className="relative w-24 h-24 rounded-lg overflow-hidden flex-shrink-0">
-                  <Image src={item.image || 'https://picsum.photos/seed/placeholder/200/200'} alt={item.name} fill className="object-cover" />
+                  <Image src={item.image || '/catalog-placeholder.svg'} alt={item.name} fill className="object-cover" />
                 </div>
                 <div className="flex-grow flex flex-col justify-between">
                   <div>
