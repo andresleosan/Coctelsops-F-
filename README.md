@@ -2,6 +2,8 @@
 
 Coctels OPS es una tienda mobile-first de cócteles y un panel operativo construido con Next.js, Firebase Auth y Firestore. La interfaz pública conserva el flujo de confirmación preparado para WhatsApp; no incluye pagos ni envío automático por la API oficial de WhatsApp.
 
+Producción actual: <https://coctelsops.vercel.app/>
+
 ## Requisitos
 
 - Node.js compatible con Next.js 16 y npm.

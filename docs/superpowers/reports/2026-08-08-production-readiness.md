@@ -6,9 +6,13 @@ Commit remoto: `171c3be`
 
 ## Diagnóstico
 
-`https://coctelsops-f.vercel.app/` responde `404 DEPLOYMENT_NOT_FOUND` con el mensaje de Vercel `The deployment could not be found on Vercel.` La solicitud no llega a Next.js, Firebase ni a las rutas de la aplicación; el bloqueo está en el proyecto o dominio de Vercel.
+`https://coctelsops-f.vercel.app/` responde `404 DEPLOYMENT_NOT_FOUND` con el mensaje de Vercel `The deployment could not be found on Vercel.` El proyecto correcto existe y sirve en `https://coctelsops.vercel.app/`; la URL con sufijo `-f` es un dominio antiguo/no asignado.
 
-El repositorio no contiene `vercel.json` ni metadata `.vercel/`. Eso es válido para un proyecto Next.js autodetectado, pero significa que la vinculación del repositorio, el proyecto Vercel y el dominio deben existir en Vercel.
+El deployment de producción más reciente está en estado `Ready` y la página `/login` responde correctamente. Sin embargo, `/api/configuration` responde `500`.
+
+El repositorio no contiene `vercel.json` ni metadata `.vercel/`. Eso es válido para un proyecto Next.js autodetectado. Vercel confirma el proyecto `coctelsops-f`, framework Next.js, Root Directory `.`, Node.js `24.x` y ningún dominio personalizado.
+
+Vercel también confirma que no hay variables de entorno configuradas para Production. Esta es la causa del `500` en endpoints que inicializan Firebase Admin; no se deben inferir ni sustituir por valores demo.
 
 ## Gates Locales
 
@@ -22,13 +26,13 @@ El repositorio no contiene `vercel.json` ni metadata `.vercel/`. Eso es válido 
 
 ## Checklist Operativo
 
-1. En Vercel, importar `andresleosan/Coctelsops-F-` y seleccionar `main` como production branch.
-2. Confirmar que el Root Directory sea la raíz del repositorio, donde viven `package.json` y `next.config.ts`.
+1. En Vercel, mantener `andresleosan/Coctelsops-F-` y `main` como production branch.
+2. Mantener Root Directory `.` donde viven `package.json` y `next.config.ts`.
 3. Configurar las variables públicas `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID` y `NEXT_PUBLIC_WHATSAPP_PHONE`.
 4. Configurar las variables privadas `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` y `FIREBASE_PRIVATE_KEY` con valores del mismo proyecto Firebase.
 5. Verificar que `FIREBASE_EMULATORS` y `NEXT_PUBLIC_FIREBASE_EMULATORS` no estén activas en Production.
-6. Asociar `coctelsops-f.vercel.app` al proyecto correcto o confirmar el nuevo dominio oficial.
-7. Ejecutar un deployment de producción desde `main` y verificar `/`, `/login`, `/menu` y `/admin/login`.
+6. Usar `https://coctelsops.vercel.app/` como URL actual o asociar explícitamente un dominio alternativo.
+7. Tras configurar variables, ejecutar un deployment de producción desde `main` y verificar `/`, `/login`, `/menu`, `/admin/login` y `/api/configuration`.
 
 ## Rollback
 
@@ -36,4 +40,4 @@ Si el deployment falla, conservar la deployment anterior válida en Vercel y rev
 
 ## Estado
 
-`BLOQUEADO_OPERATIVO`: el código local está validado, pero falta acceso/configuración del proyecto Vercel. No se puede afirmar que producción esté reparada hasta que el dominio devuelva una respuesta de la aplicación.
+`BLOQUEADO_OPERATIVO`: el deployment existe y la UI pública carga, pero Production no tiene variables Firebase y `/api/configuration` devuelve `500`. Falta configurar secretos en Vercel; no se puede completar ese paso desde el repositorio sin exponer credenciales.
