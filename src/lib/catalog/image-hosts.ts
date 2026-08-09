@@ -2,6 +2,7 @@ export const CATALOG_IMAGE_HOSTS = [
   "placehold.co",
   "images.unsplash.com",
   "picsum.photos",
+  "firebasestorage.googleapis.com",
 ] as const;
 
 export function isAllowedCatalogImage(value: string): boolean {

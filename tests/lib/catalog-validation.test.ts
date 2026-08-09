@@ -26,6 +26,13 @@ describe("productInputSchema", () => {
     expect(productInputSchema.parse(product)).toEqual(product);
   });
 
+  it("acepta URLs estables generadas por Firebase Storage", () => {
+    expect(productInputSchema.parse({
+      ...validProduct,
+      image: "https://firebasestorage.googleapis.com/v0/b/example/o/catalog%2Fproducts%2Ffresa%2Ffresa.jpg?alt=media&token=token",
+    })).toEqual(expect.objectContaining({ image: expect.stringContaining("firebasestorage.googleapis.com") }));
+  });
+
   it.each([
     ["precio cero", { price: 0 }],
     ["precio negativo", { price: -1 }],

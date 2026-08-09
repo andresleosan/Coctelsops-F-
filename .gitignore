@@ -58,3 +58,7 @@ storage-debug.log
 /qa/reports/
 /qa/test-results/
 /.superpowers/
+
+# entrada local del catálogo, entregada por el operador y nunca versionada
+/scripts/catalog/products.json
+/scripts/catalog/images/

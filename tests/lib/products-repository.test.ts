@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { get, where, collection, doc, set, update, runTransaction, transactionSet, transactionUpdate, transactionDelete, transactionCreate } = vi.hoisted(() => ({
+const { get, where, collection, doc, set, update, runTransaction, transactionGet, transactionSet, transactionUpdate, transactionDelete, transactionCreate } = vi.hoisted(() => ({
   get: vi.fn(),
   where: vi.fn(),
   collection: vi.fn(),
@@ -8,6 +8,7 @@ const { get, where, collection, doc, set, update, runTransaction, transactionSet
   set: vi.fn(),
   update: vi.fn(),
   runTransaction: vi.fn(),
+  transactionGet: vi.fn(),
   transactionSet: vi.fn(),
   transactionUpdate: vi.fn(),
   transactionDelete: vi.fn(),
@@ -71,7 +72,8 @@ describe("products repository", () => {
     where.mockReturnValue(productCollection);
     set.mockResolvedValue(undefined);
     update.mockResolvedValue(undefined);
-    runTransaction.mockImplementation(async (callback: (transaction: unknown) => Promise<unknown>) => callback({ set: transactionSet, update: transactionUpdate, delete: transactionDelete, create: transactionCreate }));
+    transactionGet.mockResolvedValue({ exists: false, data: () => undefined });
+    runTransaction.mockImplementation(async (callback: (transaction: unknown) => Promise<unknown>) => callback({ get: transactionGet, set: transactionSet, update: transactionUpdate, delete: transactionDelete, create: transactionCreate }));
   });
 
   it("lista solo productos activos y los mapea con su id documental", async () => {
@@ -143,6 +145,19 @@ describe("products repository", () => {
     await expect(updateProduct("1", productInput, customer)).rejects.toMatchObject({ status: 403 });
     expect(set).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("hace upsert por id estable, preserva createdAt y nunca borra", async () => {
+    transactionGet.mockResolvedValueOnce({ exists: true, data: () => ({ createdAt: "2026-01-01T00:00:00.000Z" }) });
+
+    await expect((await import("@/lib/firestore/products")).upsertImportedProduct("1", productInput, "catalog-import")).resolves.toBe("updated");
+
+    expect(transactionUpdate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      ...productInput,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: expect.any(String),
+    }));
+    expect(transactionDelete).not.toHaveBeenCalled();
   });
 
   it("lista solo categorías activas", async () => {

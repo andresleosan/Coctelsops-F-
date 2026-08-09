@@ -63,8 +63,11 @@ Las variables privadas son obligatorias para las rutas protegidas y los scripts 
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`, con `\n` escapados si se entrega en una sola línea.
+- `FIREBASE_STORAGE_BUCKET`, requerido únicamente al iniciar una operación de Storage.
 
 Nunca pongas una clave privada, un token de servicio o una contraseña en `README.md`, tests, `src/firebase/config.ts` ni en el repositorio. Los valores de `.env.example` son placeholders. Antes de desplegar, verifica que la configuración pública del cliente y el proyecto usado por Firebase Admin sean el mismo proyecto.
+
+El importador del catálogo lee el manifiesto privado `scripts/catalog/products.json` y las imágenes desde `scripts/catalog/images/`. Valida todo y ejecuta un dry-run por defecto; no escribe Firestore ni Storage salvo que el operador ejecute explícitamente `npm run catalog:import -- --write`. No borra productos ausentes y no se deben agregar imágenes binarias ni credenciales al repositorio.
 
 Nota: el bootstrap actual del cliente importa `src/firebase/config.ts` directamente. Antes de usar otro proyecto Firebase, verifica y actualiza esa configuración pública mediante el mecanismo de despliegue aprobado; no asumas que definir `NEXT_PUBLIC_*` cambia por sí solo el proyecto del navegador.
 

@@ -100,6 +100,36 @@ export async function updateProduct(id: string, input: ProductInput, caller: Cat
   });
 }
 
+export async function updateProductImage(id: string, image: string, actorUid: string): Promise<void> {
+  if (!id.trim() || !image.trim()) throw new Error("El producto y la imagen son obligatorios");
+  const reference = productCollection().doc(id);
+  const changes = { image };
+  const data = { ...changes, updatedAt: new Date().toISOString() };
+  await getAdminDb().runTransaction(async (transaction) => {
+    transaction.update(reference, data);
+    writeAuditInTransaction(transaction, { actorUid, action: "update", module: "productos", entityId: id, changes });
+  });
+}
+
+export async function upsertImportedProduct(id: string, input: ProductInput, actorUid: string): Promise<"created" | "updated"> {
+  if (!/^[a-z0-9-]+$/.test(id)) throw new Error("El identificador del producto no es válido");
+  const validated = productInputSchema.parse(input);
+  const reference = productCollection().doc(id);
+  const result = await getAdminDb().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(reference);
+    const now = new Date().toISOString();
+    const existingCreatedAt = snapshot.exists ? snapshot.data()?.createdAt : undefined;
+    const createdAt = typeof existingCreatedAt === "string" ? existingCreatedAt : now;
+    const data = { ...validated, createdAt, updatedAt: now };
+    const action = snapshot.exists ? "updated" : "created";
+    if (snapshot.exists) transaction.update(reference, data);
+    else transaction.set(reference, data);
+    writeAuditInTransaction(transaction, { actorUid, action: action === "created" ? "create" : "update", module: "productos", entityId: id, changes: validated });
+    return action;
+  });
+  return result;
+}
+
 export async function deleteProduct(id: string, caller: CatalogCaller): Promise<void> {
   requireCatalogPermission(caller, "productos.write");
   const reference = productCollection().doc(id);
