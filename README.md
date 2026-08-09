@@ -4,7 +4,7 @@ Coctels OPS es una tienda mobile-first de cócteles y un panel operativo constru
 
 ## Requisitos
 
-- Node.js compatible con Next.js 15 y npm.
+- Node.js compatible con Next.js 16 y npm.
 - Firebase CLI para publicar reglas e índices y ejecutar emuladores locales.
 - Java 11 o superior para Firebase Emulator Suite.
 - Un proyecto Firebase separado para desarrollo, staging o producción.
