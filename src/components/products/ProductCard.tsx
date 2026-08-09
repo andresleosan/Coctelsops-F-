@@ -9,6 +9,7 @@ import type { Product } from '@/types/catalog';
 import { useState, useEffect } from 'react';
 import ProductCustomizer from './ProductCustomizer';
 import { Badge } from '@/components/ui/badge';
+import ProductImagePlaceholder from './ProductImagePlaceholder';
 
 interface ProductCardProps {
   product: Product;
@@ -23,20 +24,11 @@ export default function ProductCard({ product }: ProductCardProps) {
     setFormattedPrice(product.price.toLocaleString());
   }, [product.price]);
 
-  // Fallback image to prevent NextJS empty src error
-  const imageSrc = product.image || 'https://picsum.photos/seed/placeholder/600/600';
-
   return (
     <>
       <Card className="group overflow-hidden border-none shadow-md hover:shadow-xl transition-all duration-300 bg-black/40 border-primary/10">
         <CardHeader className="p-0 relative aspect-square overflow-hidden">
-          <Image
-            src={imageSrc}
-            alt={product.name}
-            fill
-            className="object-cover transition-transform duration-500 group-hover:scale-110"
-            data-ai-hint="refreshing granizado"
-          />
+          {product.image ? <Image src={product.image} alt={product.name} fill className="object-cover transition-transform duration-500 group-hover:scale-110" data-ai-hint="refreshing granizado" /> : <ProductImagePlaceholder label="Imagen pendiente" />}
           <div className="absolute top-2 right-2">
             <Badge variant="secondary" className="bg-black/80 backdrop-blur-sm text-primary font-bold border-primary/20">
               {formattedPrice ? `$${formattedPrice}` : '...'}

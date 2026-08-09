@@ -121,7 +121,7 @@ export default async function Home() {
             </div>
 
             <div className="relative aspect-square rounded-2xl overflow-hidden shadow-2xl border border-white/5 order-first md:order-last">
-              <CocktailCarousel />
+              <CocktailCarousel products={featuredProducts} />
             </div>
           </div>
         </div>
