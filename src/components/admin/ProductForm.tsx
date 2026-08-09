@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Image from "next/image";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,8 +21,19 @@ export function ProductForm({ product }: { product?: Product }) {
   const [flavors, setFlavors] = useState(product?.availableFlavors.join(", ") ?? "");
   const [addOns, setAddOns] = useState(product?.availableAddOns.map((item) => `${item.name}:${item.price}`).join(", ") ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState(product?.image ?? "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => () => {
+    if (imagePreview.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
+  }, [imagePreview]);
+
+  function selectImage(event: React.ChangeEvent<HTMLInputElement>): void {
+    const selectedFile = event.target.files?.[0] ?? null;
+    setImageFile(selectedFile);
+    setImagePreview(selectedFile ? URL.createObjectURL(selectedFile) : product?.image ?? "");
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -69,7 +81,7 @@ export function ProductForm({ product }: { product?: Product }) {
       <div className="space-y-2"><Label htmlFor="product-price">Precio</Label><Input id="product-price" type="number" min="1" value={form.price} onChange={(event) => setForm({ ...form, price: Number(event.target.value) })} required /></div>
       <div className="space-y-2 md:col-span-2"><Label htmlFor="product-description">Descripción</Label><Textarea id="product-description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} required /></div>
        <div className="space-y-2"><Label htmlFor="product-image">Imagen (URL permitida)</Label><Input id="product-image" type="url" value={form.image} onChange={(event) => setForm({ ...form, image: event.target.value })} required={!product} /><p className="text-xs text-muted-foreground">Los productos nuevos requieren una URL hasta tener un ID.</p></div>
-       {product && <div className="space-y-2"><Label htmlFor="product-image-file">Reemplazar imagen</Label><Input id="product-image-file" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /><p className="text-xs text-muted-foreground">JPEG, PNG o WebP de máximo 5 MB.</p></div>}
+       {product && <div className="space-y-2"><Label htmlFor="product-image-file">Reemplazar imagen</Label><Input id="product-image-file" type="file" accept="image/jpeg,image/png,image/webp" onChange={selectImage} /><p className="text-xs text-muted-foreground">JPEG, PNG o WebP de máximo 5 MB.</p><div className="relative aspect-video overflow-hidden rounded-lg border border-primary/20 bg-black/40"><span className="sr-only">Vista previa de {product.name}</span>{imagePreview ? <Image src={imagePreview} alt={`Vista previa de ${product.name}`} fill unoptimized className="object-contain" /> : <p className="flex h-full items-center justify-center text-xs text-muted-foreground">Sin imagen</p>}</div></div>}
       <div className="space-y-2"><Label htmlFor="product-category">Categoría</Label><select id="product-category" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as ProductInput["category"] })} className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="granizado">Granizado</option><option value="cocktail">Cóctel</option><option value="special">Especial</option></select></div>
       <div className="space-y-2"><Label htmlFor="product-stock">Stock</Label><Input id="product-stock" type="number" min="0" value={form.stock} onChange={(event) => setForm({ ...form, stock: Number(event.target.value) })} /></div>
       <div className="space-y-2"><Label htmlFor="product-flavors">Sabores (separados por coma)</Label><Input id="product-flavors" value={flavors} onChange={(event) => setFlavors(event.target.value)} /></div>

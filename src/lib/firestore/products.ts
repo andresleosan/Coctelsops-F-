@@ -15,7 +15,8 @@ function productCollection() {
 
 function requireCatalogPermission(caller: CatalogCaller | undefined, permission: CatalogPermission): void {
   const isAdmin = caller?.token.admin === true && caller.profile.accountType === "admin";
-  const isAllowed = caller?.profile.active === true && (isAdmin || caller.permissions.includes(permission));
+  const writeImpliesRead = permission === "productos.read" && caller?.permissions.includes("productos.write") === true;
+  const isAllowed = caller?.profile.active === true && (isAdmin || caller.permissions.includes(permission) || writeImpliesRead);
 
   if (!isAllowed) {
     throw new AuthorizationError(403, "No tienes permiso para acceder al catálogo");

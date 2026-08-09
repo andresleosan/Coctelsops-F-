@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { getAdminStorageBucket } from "@/lib/firebase-admin";
@@ -66,17 +66,27 @@ export function validateProductImageContent(bytes: Uint8Array, contentType: stri
   if (!isValid) throw new CatalogImageError("El contenido no corresponde a una imagen JPEG, PNG o WebP válida");
 }
 
-function resolveLocalImagePath(imageFile: string): string {
+async function resolveLocalImagePath(imageFile: string): Promise<string> {
   assertSafeFilename(imageFile);
   const imagesDirectory = path.resolve(process.cwd(), "scripts/catalog/images");
   const resolved = path.resolve(imagesDirectory, imageFile);
   const relative = path.relative(imagesDirectory, resolved);
   if (relative.startsWith("..") || path.isAbsolute(relative)) throw new CatalogImageError("El archivo de imagen está fuera del directorio permitido");
-  return resolved;
+
+  try {
+    const realImagesDirectory = await realpath(imagesDirectory);
+    const realImagePath = await realpath(resolved);
+    const realRelative = path.relative(realImagesDirectory, realImagePath);
+    if (realRelative.startsWith("..") || path.isAbsolute(realRelative)) throw new CatalogImageError("El archivo de imagen está fuera del directorio permitido");
+    return realImagePath;
+  } catch (error) {
+    if (error instanceof CatalogImageError) throw error;
+    throw new CatalogImageError("No se pudo resolver el archivo de imagen");
+  }
 }
 
 export async function validateLocalProductImage(imageFile: string): Promise<void> {
-  const imagePath = resolveLocalImagePath(imageFile);
+  const imagePath = await resolveLocalImagePath(imageFile);
   const imageStats = await stat(imagePath);
   if (!imageStats.isFile()) throw new CatalogImageError("El archivo de imagen no es válido");
   const contentType = contentTypeForFilename(imageFile);
@@ -107,7 +117,7 @@ export async function uploadProductImageBytes(
 }
 
 export async function uploadLocalProductImage(imageFile: string, productId: string): Promise<string> {
-  const imagePath = resolveLocalImagePath(imageFile);
+  const imagePath = await resolveLocalImagePath(imageFile);
   const bytes = new Uint8Array(await readFile(imagePath));
   return uploadProductImageBytes({ bytes, filename: imageFile, contentType: contentTypeForFilename(imageFile) }, productId);
 }

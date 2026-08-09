@@ -19,7 +19,7 @@ vi.mock("@/lib/firestore/products", () => ({ updateProductImage, getProductById 
 
 import { POST } from "@/app/api/admin/productos/[id]/image/route";
 
-const actor = { uid: "admin-1" };
+const actor = { uid: "admin-1", permissions: ["productos.write"] };
 const product = { id: "fresa-salvaje", name: "Fresa Salvaje", image: "https://old.example/image.jpg" };
 
 function requestWithFile(file: { body: string | Uint8Array; name: string; type: string }): Request {
@@ -65,6 +65,14 @@ describe("POST /api/admin/productos/:id/image", () => {
     expect(uploadProductImageBytes).toHaveBeenCalledWith({ bytes: expect.any(Uint8Array), filename: "fresa.jpg", contentType: "image/jpeg" }, "fresa-salvaje");
     expect(updateProductImage).toHaveBeenCalledWith("fresa-salvaje", "https://firebasestorage.googleapis.com/new-image", actor.uid);
     await expect(response.json()).resolves.toEqual({ product: { ...product, image: "https://firebasestorage.googleapis.com/new-image" } });
+  });
+
+  it("permite reemplazar la imagen a un caller con write aunque no tenga read explícito", async () => {
+    const response = await POST(requestWithFile({ body: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), name: "fresa.jpg", type: "image/jpeg" }), { params: Promise.resolve({ id: "fresa-salvaje" }) });
+
+    expect(response.status).toBe(200);
+    expect(requirePermission).toHaveBeenCalledWith(expect.anything(), "productos.write");
+    expect(actor.permissions).not.toContain("productos.read");
   });
 
   it("rechaza bytes arbitrarios aunque el MIME y la extensión sean JPEG", async () => {

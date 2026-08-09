@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
 
-const { save, file, readFile, stat } = vi.hoisted(() => ({ save: vi.fn(), file: vi.fn(), readFile: vi.fn(), stat: vi.fn() }));
+const { save, file, readFile, stat, realpath } = vi.hoisted(() => ({ save: vi.fn(), file: vi.fn(), readFile: vi.fn(), stat: vi.fn(), realpath: vi.fn() }));
 const bucket = { name: "example.firebasestorage.app", file };
 
 vi.mock("@/lib/firebase-admin", () => ({ getAdminStorageBucket: () => bucket }));
-vi.mock("node:fs/promises", () => ({ default: { readFile, stat }, readFile, stat }));
+vi.mock("node:fs/promises", () => ({ default: { readFile, stat, realpath }, readFile, stat, realpath }));
 
 import { uploadProductImageBytes, validateLocalProductImage } from "@/lib/catalog/storage";
 
@@ -14,6 +15,7 @@ describe("Storage de imágenes de catálogo", () => {
     file.mockReturnValue({ save });
     save.mockResolvedValue(undefined);
     stat.mockResolvedValue({ isFile: () => true, size: 4 });
+    realpath.mockImplementation(async (value: string) => value);
   });
 
   it.each([
@@ -69,5 +71,13 @@ describe("Storage de imágenes de catálogo", () => {
     stat.mockResolvedValueOnce({ isFile: () => true, size: 3 });
 
     await expect(validateLocalProductImage("fresa.jpg")).rejects.toMatchObject({ status: 422 });
+  });
+
+  it("rechaza un symlink o junction cuyo destino real queda fuera del directorio de imágenes", async () => {
+    const imageDirectory = path.resolve(process.cwd(), "scripts/catalog/images");
+    realpath.mockImplementation(async (value: string) => value === imageDirectory ? imageDirectory : path.resolve(process.cwd(), "outside/secret.jpg"));
+
+    await expect(validateLocalProductImage("linked.jpg")).rejects.toMatchObject({ status: 422 });
+    expect(stat).not.toHaveBeenCalled();
   });
 });

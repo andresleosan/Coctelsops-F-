@@ -129,6 +129,18 @@ describe("products repository", () => {
     await expect(getProductById("1", { includeInactive: true, caller: staff })).resolves.toMatchObject({ active: false });
   });
 
+  it("permite leer el producto actualizado con productos.write sin productos.read", async () => {
+    const writeOnlyStaff = {
+      ...caller,
+      token: { uid: "staff-1", admin: false },
+      profile: { ...caller.profile, uid: "staff-1", accountType: "staff" as const },
+      permissions: ["productos.write" as const],
+    };
+    get.mockResolvedValueOnce({ exists: true, data: () => ({ ...productInput, active: true }) });
+
+    await expect(getProductById("1", { includeInactive: true, caller: writeOnlyStaff })).resolves.toMatchObject({ id: "1" });
+  });
+
   it("valida y escribe productos solo con permiso de escritura", async () => {
     await expect(createProduct(productInput, caller, "1")).resolves.toBe("1");
     expect(doc).toHaveBeenCalledWith("1");

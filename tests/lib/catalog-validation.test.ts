@@ -40,6 +40,11 @@ describe("productInputSchema", () => {
     })).toThrow();
   });
 
+  it("rechaza rutas locales de productos que no sean el fallback controlado", () => {
+    expect(() => productInputSchema.parse({ ...validProduct, image: "/Fresa.png" })).toThrow();
+    expect(productInputSchema.parse(validProduct).image).toBe("/catalog-placeholder.svg");
+  });
+
   it.each([
     ["precio cero", { price: 0 }],
     ["precio negativo", { price: -1 }],

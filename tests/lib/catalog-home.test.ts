@@ -11,7 +11,7 @@ const product = (id: string, featured: boolean) => ({
   name: `Producto ${id}`,
   description: "Bebida de prueba",
   price: 8500,
-  image: "/Fresa.png",
+  image: "/catalog-placeholder.svg",
   category: "granizado" as const,
   availableFlavors: ["Fresa"],
   availableAddOns: [],

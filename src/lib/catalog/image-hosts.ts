@@ -3,7 +3,8 @@ export const CATALOG_IMAGE_HOSTS = [
 ] as const;
 
 export function isAllowedCatalogImage(value: string): boolean {
-  if (value.startsWith("/") && !value.startsWith("//")) return true;
+  if (value === "/catalog-placeholder.svg") return true;
+  if (value.startsWith("/")) return false;
 
   try {
     const url = new URL(value);
