@@ -1,0 +1,17 @@
+[
+  {
+    "id": "producto-real-en-minusculas",
+    "imageFile": "producto-real.jpg",
+    "product": {
+      "name": "Nombre real",
+      "description": "Descripción comercial real",
+      "price": 10000,
+      "category": "granizado",
+      "availableFlavors": [],
+      "availableAddOns": [],
+      "stock": 0,
+      "active": true,
+      "featured": false
+    }
+  }
+]
