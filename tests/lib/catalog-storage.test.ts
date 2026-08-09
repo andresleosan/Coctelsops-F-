@@ -80,4 +80,13 @@ describe("Storage de imágenes de catálogo", () => {
     await expect(validateLocalProductImage("linked.jpg")).rejects.toMatchObject({ status: 422 });
     expect(stat).not.toHaveBeenCalled();
   });
+
+  it("rechaza una junction o symlink que redirige la raíz de imágenes fuera del repositorio", async () => {
+    const imageDirectory = path.resolve(process.cwd(), "scripts/catalog/images");
+    const redirectedDirectory = path.resolve(process.cwd(), "outside/catalog-images");
+    realpath.mockImplementation(async (value: string) => value === imageDirectory ? redirectedDirectory : path.join(redirectedDirectory, "fresa.jpg"));
+
+    await expect(validateLocalProductImage("fresa.jpg")).rejects.toMatchObject({ status: 422 });
+    expect(stat).not.toHaveBeenCalled();
+  });
 });

@@ -75,6 +75,9 @@ async function resolveLocalImagePath(imageFile: string): Promise<string> {
 
   try {
     const realImagesDirectory = await realpath(imagesDirectory);
+    if (path.relative(imagesDirectory, realImagesDirectory) !== "") {
+      throw new CatalogImageError("El directorio de imágenes no es la carpeta esperada del repositorio");
+    }
     const realImagePath = await realpath(resolved);
     const realRelative = path.relative(realImagesDirectory, realImagePath);
     if (realRelative.startsWith("..") || path.isAbsolute(realRelative)) throw new CatalogImageError("El archivo de imagen está fuera del directorio permitido");
