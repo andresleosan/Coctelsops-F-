@@ -11,6 +11,7 @@ Producción actual: <https://coctelsops.vercel.app/>
 - Java 11 o superior para Firebase Emulator Suite.
 - Un proyecto Firebase separado para desarrollo, staging o producción.
 - Credenciales de Firebase Admin entregadas por un operador autorizado únicamente mediante variables de entorno.
+- Un bucket de Cloudflare R2 para las imágenes del catálogo y credenciales R2 entregadas únicamente mediante variables de entorno.
 
 ## Configuración local
 
@@ -63,11 +64,22 @@ Las variables privadas son obligatorias para las rutas protegidas y los scripts 
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`, con `\n` escapados si se entrega en una sola línea.
-- `FIREBASE_STORAGE_BUCKET`, requerido únicamente al iniciar una operación de Storage.
+
+R2 ya es el backend de imágenes del catálogo. Firebase Admin, Firebase Auth y Firestore siguen siendo necesarios para las rutas protegidas, el login y los datos de productos. Configura estas variables privadas en el entorno del servidor o de los scripts:
+
+- `R2_ACCOUNT_ID`
+- `R2_BUCKET_NAME`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_PUBLIC_BASE_URL`, por ejemplo `https://img.example.com`.
+
+Para que la validación y el build del cliente acepten las imágenes R2, `NEXT_PUBLIC_R2_PUBLIC_BASE_URL` debe coincidir con `R2_PUBLIC_BASE_URL`. Esta variable pública solo contiene la base HTTPS, nunca credenciales.
+
+El token de R2 debe tener permisos limitados al bucket del catálogo, sin acceso a otros buckets ni permisos administrativos. `r2.dev` es solo para pruebas; para imágenes públicas usa un dominio controlado mediante `R2_PUBLIC_BASE_URL`. No pegues credenciales R2 o Firebase en el chat, no las imprimas en logs y no las guardes en Git.
 
 Nunca pongas una clave privada, un token de servicio o una contraseña en `README.md`, tests, `src/firebase/config.ts` ni en el repositorio. Los valores de `.env.example` son placeholders. Antes de desplegar, verifica que la configuración pública del cliente y el proyecto usado por Firebase Admin sean el mismo proyecto.
 
-El importador del catálogo lee el manifiesto privado `scripts/catalog/products.json` y las imágenes desde `scripts/catalog/images/`. Valida todo y ejecuta un dry-run por defecto; no escribe Firestore ni Storage salvo que el operador ejecute explícitamente `npm run catalog:import -- --write`. No borra productos ausentes y no se deben agregar imágenes binarias ni credenciales al repositorio.
+El importador del catálogo lee el manifiesto privado `scripts/catalog/products.json` y las imágenes desde `scripts/catalog/images/`. Valida todo, ejecuta un dry-run por defecto y usa R2 para las imágenes cuando se autoriza `--write`; Firestore conserva los productos y la auditoría. No borra productos ausentes y no se deben agregar imágenes binarias ni credenciales al repositorio.
 
 Nota: el bootstrap actual del cliente importa `src/firebase/config.ts` directamente. Antes de usar otro proyecto Firebase, verifica y actualiza esa configuración pública mediante el mecanismo de despliegue aprobado; no asumas que definir `NEXT_PUBLIC_*` cambia por sí solo el proyecto del navegador.
 

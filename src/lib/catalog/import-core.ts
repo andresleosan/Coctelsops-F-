@@ -11,7 +11,8 @@ export type CatalogImportReport = {
 
 export type CatalogImportAdapters = {
   validateLocalProductImage: (imageFile: string) => Promise<void>;
-  uploadLocalProductImage: (imageFile: string, productId: string) => Promise<string>;
+  uploadLocalProductImage: (imageFile: string, productId: string) => Promise<{ key: string; url: string }>;
+  deleteLocalProductImage?: (key: string) => Promise<void>;
   upsertImportedProduct?: (id: string, input: ProductInput, actorUid: string) => Promise<"created" | "updated">;
 };
 
@@ -49,14 +50,24 @@ export async function runCatalogImportCore(
   let created = 0;
   let updated = 0;
   for (const record of records) {
+    let uploadedImage: { key: string; url: string } | undefined;
     try {
       const image = await adapters.uploadLocalProductImage(record.imageFile, record.id);
+      uploadedImage = image;
       images += 1;
-      const result = await adapters.upsertImportedProduct(record.id, { ...record.product, image }, "catalog-import");
+      const result = await adapters.upsertImportedProduct(record.id, { ...record.product, image: image.url }, "catalog-import");
       if (result === "created") created += 1;
       else updated += 1;
     } catch (error) {
-      errors.push(`${record.id}: ${errorMessage(error)}`);
+      let message = errorMessage(error);
+      if (uploadedImage && adapters.deleteLocalProductImage) {
+        try {
+          await adapters.deleteLocalProductImage(uploadedImage.key);
+        } catch {
+          message += `; la limpieza de la imagen no pudo completarse para el producto ${record.id}`;
+        }
+      }
+      errors.push(`${record.id}: ${message}`);
     }
   }
 

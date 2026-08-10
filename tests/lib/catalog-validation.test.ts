@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { productInputSchema } from "@/lib/validation/catalog";
 
@@ -16,6 +16,10 @@ const validProduct = {
 };
 
 describe("productInputSchema", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("acepta una entrada de producto válida", () => {
     expect(productInputSchema.parse(validProduct)).toEqual(validProduct);
   });
@@ -31,6 +35,16 @@ describe("productInputSchema", () => {
       ...validProduct,
       image: "https://firebasestorage.googleapis.com/v0/b/example/o/catalog%2Fproducts%2Ffresa%2Ffresa.jpg?alt=media&token=token",
     })).toEqual(expect.objectContaining({ image: expect.stringContaining("firebasestorage.googleapis.com") }));
+  });
+
+  it("acepta una URL HTTPS del host R2 configurado", () => {
+    vi.stubEnv("R2_PUBLIC_BASE_URL", "https://images.example.com");
+    vi.stubEnv("NEXT_PUBLIC_R2_PUBLIC_BASE_URL", "");
+
+    expect(productInputSchema.parse({
+      ...validProduct,
+      image: "https://images.example.com/catalog/products/fresa/fresa.jpg",
+    })).toEqual(expect.objectContaining({ image: expect.stringContaining("images.example.com") }));
   });
 
   it("rechaza URLs de fotos aleatorias", () => {
@@ -54,9 +68,22 @@ describe("productInputSchema", () => {
     ["imagen mal formada", { image: "not-a-url" }],
     ["imagen con host relativo", { image: "//example.com/image.png" }],
     ["host de imagen no configurado", { image: "https://example.com/image.png" }],
+    ["host R2 no configurado", { image: "https://images.example.com/catalog/products/fresa/fresa.jpg" }],
     ["host permitido con puerto", { image: "https://firebasestorage.googleapis.com:8443/image.png" }],
   ])("rechaza %s", (_case, override) => {
+    vi.stubEnv("R2_PUBLIC_BASE_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_R2_PUBLIC_BASE_URL", "");
     expect(() => productInputSchema.parse({ ...validProduct, ...override })).toThrow();
+  });
+
+  it("rechaza una URL HTTP aunque el host R2 esté configurado", () => {
+    vi.stubEnv("R2_PUBLIC_BASE_URL", "http://images.example.com");
+    vi.stubEnv("NEXT_PUBLIC_R2_PUBLIC_BASE_URL", "");
+
+    expect(() => productInputSchema.parse({
+      ...validProduct,
+      image: "http://images.example.com/catalog/products/fresa/fresa.jpg",
+    })).toThrow();
   });
 
   it("rechaza nombres de adiciones duplicados sin distinguir mayúsculas", () => {

@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { readFile, validateLocalProductImage, uploadLocalProductImage, upsertImportedProduct } = vi.hoisted(() => ({
+const { readFile, validateLocalProductImage, uploadLocalProductImage, deleteLocalProductImage, upsertImportedProduct } = vi.hoisted(() => ({
   readFile: vi.fn(),
   validateLocalProductImage: vi.fn(),
   uploadLocalProductImage: vi.fn(),
+  deleteLocalProductImage: vi.fn(),
   upsertImportedProduct: vi.fn(),
 }));
 
 vi.mock("node:fs/promises", () => ({ default: { readFile }, readFile }));
-vi.mock("@/lib/catalog/storage", () => ({ validateLocalProductImage, uploadLocalProductImage }));
+vi.mock("@/lib/catalog/storage", () => ({ validateLocalProductImage, uploadLocalProductImage, deleteProductImage: deleteLocalProductImage }));
 vi.mock("@/lib/firestore/products", () => ({ upsertImportedProduct }));
 
 import { getCatalogImportPath, parseCatalogImport } from "@/lib/catalog/import-schema";
@@ -59,7 +60,10 @@ describe("runCatalogImport", () => {
     vi.clearAllMocks();
     readFile.mockResolvedValue(JSON.stringify([{ id: "fresa-salvaje", imageFile: "fresa.jpg", product: validProduct }]));
     validateLocalProductImage.mockResolvedValue(undefined);
-    uploadLocalProductImage.mockResolvedValue("https://firebasestorage.googleapis.com/v0/b/example/o/catalog%2Fproducts%2Ffresa-salvaje%2Ffresa.jpg");
+    uploadLocalProductImage.mockResolvedValue({
+      key: "catalog/products/fresa-salvaje/uuid-fresa.jpg",
+      url: "https://images.example.com/catalog/products/fresa-salvaje/uuid-fresa.jpg",
+    });
     upsertImportedProduct.mockResolvedValue("created");
   });
 
@@ -79,6 +83,40 @@ describe("runCatalogImport", () => {
   it("sube y hace upsert con actor técnico cuando se habilita la escritura", async () => {
     await expect(runCatalogImport({ dryRun: false })).resolves.toMatchObject({ products: 1, images: 1, created: 1 });
     expect(uploadLocalProductImage).toHaveBeenCalledWith("fresa.jpg", "fresa-salvaje");
-    expect(upsertImportedProduct).toHaveBeenCalledWith("fresa-salvaje", { ...validProduct, image: expect.any(String) }, "catalog-import");
+    expect(upsertImportedProduct).toHaveBeenCalledWith("fresa-salvaje", { ...validProduct, image: "https://images.example.com/catalog/products/fresa-salvaje/uuid-fresa.jpg" }, "catalog-import");
+  });
+
+  it("borra la imagen nueva si falla el upsert y conserva el error original", async () => {
+    upsertImportedProduct.mockRejectedValueOnce(new Error("Firestore indisponible"));
+
+    await expect(runCatalogImport({ dryRun: false })).resolves.toMatchObject({
+      products: 1,
+      images: 1,
+      errors: ["fresa-salvaje: Firestore indisponible"],
+    });
+    expect(deleteLocalProductImage).toHaveBeenCalledWith("catalog/products/fresa-salvaje/uuid-fresa.jpg");
+  });
+
+  it("no intenta borrar si falla la subida", async () => {
+    uploadLocalProductImage.mockRejectedValueOnce(new Error("R2 indisponible"));
+
+    await expect(runCatalogImport({ dryRun: false })).resolves.toMatchObject({
+      products: 1,
+      images: 0,
+      errors: ["fresa-salvaje: R2 indisponible"],
+    });
+    expect(deleteLocalProductImage).not.toHaveBeenCalled();
+  });
+
+  it("informa si la limpieza compensatoria también falla", async () => {
+    upsertImportedProduct.mockRejectedValueOnce(new Error("Firestore indisponible"));
+    const cleanupError = "R2 no permite borrar: https://secret.example/token";
+    deleteLocalProductImage.mockRejectedValueOnce(new Error(cleanupError));
+
+    const report = await runCatalogImport({ dryRun: false });
+
+    expect(report.errors).toEqual(["fresa-salvaje: Firestore indisponible; la limpieza de la imagen no pudo completarse para el producto fresa-salvaje"]);
+    expect(report.errors.join(" ")).toContain("fresa-salvaje");
+    expect(report.errors.join(" ")).not.toContain(cleanupError);
   });
 });

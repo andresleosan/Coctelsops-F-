@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { getCatalogImportPath } from "@/lib/catalog/import-schema";
 import { runCatalogImportCore, type CatalogImportReport } from "@/lib/catalog/import-core";
-import { uploadLocalProductImage, validateLocalProductImage } from "@/lib/catalog/storage";
+import { deleteProductImage, uploadLocalProductImage, validateLocalProductImage } from "@/lib/catalog/storage";
 import { upsertImportedProduct } from "@/lib/firestore/products";
 
 export type { CatalogImportReport } from "@/lib/catalog/import-core";
@@ -13,6 +13,7 @@ export async function runCatalogImport(options: { dryRun: boolean }): Promise<Ca
     return runCatalogImportCore(JSON.parse(content), options, {
       validateLocalProductImage,
       uploadLocalProductImage,
+      deleteLocalProductImage: deleteProductImage,
       upsertImportedProduct,
     });
   } catch (error) {

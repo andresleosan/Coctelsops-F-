@@ -1,5 +1,5 @@
 import type {NextConfig} from 'next';
-import { CATALOG_IMAGE_HOSTS } from './src/lib/catalog/image-hosts';
+import { getCatalogImageHosts } from './src/lib/catalog/image-hosts';
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns: [
-      ...CATALOG_IMAGE_HOSTS.map((hostname) => ({
+      ...getCatalogImageHosts().map((hostname) => ({
         protocol: 'https' as const,
         hostname,
         port: '',

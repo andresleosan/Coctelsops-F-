@@ -1,6 +1,6 @@
 import { requirePermission } from "@/lib/auth/permissions";
 import { toAuthorizationResponse } from "@/lib/auth/verify-request";
-import { CatalogImageError, uploadProductImageBytes, validateProductImageContent } from "@/lib/catalog/storage";
+import { CatalogImageError, deleteProductImage, uploadProductImageBytes, validateProductImageContent } from "@/lib/catalog/storage";
 import { getProductById, updateProductImage } from "@/lib/firestore/products";
 import path from "node:path";
 
@@ -39,8 +39,17 @@ export async function POST(request: Request, context: Context): Promise<Response
       filename: file.name,
       contentType: file.type,
     }, id);
-    await updateProductImage(id, image, caller.uid);
-    return Response.json({ product: { ...currentProduct, image } });
+    try {
+      await updateProductImage(id, image.url, caller.uid);
+    } catch (error) {
+      try {
+        await deleteProductImage(image.key);
+      } catch {
+        console.error("[catalog-image-cleanup]", { productId: id, key: image.key });
+      }
+      throw error;
+    }
+    return Response.json({ product: { ...currentProduct, image: image.url } });
   } catch (error) {
     return imageErrorResponse(error);
   }

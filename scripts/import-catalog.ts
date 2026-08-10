@@ -23,6 +23,10 @@ export async function runCliCatalogImport(options: { dryRun: boolean }): Promise
       const adapter = await import("./catalog/import-adapter");
       return adapter.uploadProductImageBytes(image, productId);
     },
+    deleteLocalProductImage: async (key) => {
+      const adapter = await import("./catalog/import-adapter");
+      await adapter.deleteProductImage(key);
+    },
   };
 
   if (!options.dryRun) {

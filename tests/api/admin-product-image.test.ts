@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requirePermission, uploadProductImageBytes, updateProductImage, getProductById } = vi.hoisted(() => ({
+const { requirePermission, uploadProductImageBytes, deleteProductImage, updateProductImage, getProductById } = vi.hoisted(() => ({
   requirePermission: vi.fn(),
   uploadProductImageBytes: vi.fn(),
+  deleteProductImage: vi.fn(),
   updateProductImage: vi.fn(),
   getProductById: vi.fn(),
 }));
@@ -14,6 +15,7 @@ vi.mock("@/lib/auth/verify-request", () => ({
 vi.mock("@/lib/catalog/storage", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/catalog/storage")>()),
   uploadProductImageBytes,
+  deleteProductImage,
 }));
 vi.mock("@/lib/firestore/products", () => ({ updateProductImage, getProductById }));
 
@@ -37,7 +39,10 @@ describe("POST /api/admin/productos/:id/image", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requirePermission.mockResolvedValue(actor);
-    uploadProductImageBytes.mockResolvedValue("https://firebasestorage.googleapis.com/new-image");
+    uploadProductImageBytes.mockResolvedValue({
+      key: "catalog/products/fresa-salvaje/uuid-fresa.jpg",
+      url: "https://images.example.com/catalog/products/fresa-salvaje/uuid-fresa.jpg",
+    });
     updateProductImage.mockResolvedValue(undefined);
     getProductById.mockResolvedValue(product);
   });
@@ -63,8 +68,26 @@ describe("POST /api/admin/productos/:id/image", () => {
 
     expect(response.status).toBe(200);
     expect(uploadProductImageBytes).toHaveBeenCalledWith({ bytes: expect.any(Uint8Array), filename: "fresa.jpg", contentType: "image/jpeg" }, "fresa-salvaje");
-    expect(updateProductImage).toHaveBeenCalledWith("fresa-salvaje", "https://firebasestorage.googleapis.com/new-image", actor.uid);
-    await expect(response.json()).resolves.toEqual({ product: { ...product, image: "https://firebasestorage.googleapis.com/new-image" } });
+    expect(updateProductImage).toHaveBeenCalledWith("fresa-salvaje", "https://images.example.com/catalog/products/fresa-salvaje/uuid-fresa.jpg", actor.uid);
+    await expect(response.json()).resolves.toEqual({ product: { ...product, image: "https://images.example.com/catalog/products/fresa-salvaje/uuid-fresa.jpg" } });
+  });
+
+  it("borra por clave versionada y registra el fallo de limpieza sin reemplazar el error original", async () => {
+    updateProductImage.mockRejectedValueOnce(new Error("Firestore indisponible"));
+    deleteProductImage.mockRejectedValueOnce(new Error("detalle interno no publicable"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      const response = await POST(requestWithFile({ body: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), name: "fresa.jpg", type: "image/jpeg" }), { params: Promise.resolve({ id: "fresa-salvaje" }) });
+
+      expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toEqual({ error: "Firestore indisponible" });
+      expect(deleteProductImage).toHaveBeenCalledWith("catalog/products/fresa-salvaje/uuid-fresa.jpg");
+      expect(consoleError).toHaveBeenCalledWith("[catalog-image-cleanup]", { productId: "fresa-salvaje", key: "catalog/products/fresa-salvaje/uuid-fresa.jpg" });
+      expect(consoleError.mock.calls.flat().join(" ")).not.toContain("detalle interno no publicable");
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("permite reemplazar la imagen a un caller con write aunque no tenga read explícito", async () => {

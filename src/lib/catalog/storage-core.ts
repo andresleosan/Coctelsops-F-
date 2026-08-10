@@ -1,29 +1,39 @@
 import { randomUUID } from "node:crypto";
-import type { Bucket } from "@google-cloud/storage";
 
 import {
   assertCatalogProductId,
+  assertSafeImageFilename,
   validateProductImageBytes,
 } from "@/lib/catalog/image-validation";
+import type { CatalogImageStore } from "@/lib/catalog/r2-store-core";
+
+export function catalogImageKey(productId: string, filename: string): string {
+  assertCatalogProductId(productId);
+  assertSafeImageFilename(filename);
+
+  return `catalog/products/${productId}/${randomUUID()}-${filename.replaceAll("\\", "/")}`;
+}
 
 export async function uploadCatalogImageBytes(
   input: { bytes: Uint8Array; filename: string; contentType: string },
   productId: string,
-  getBucket: () => Bucket,
-): Promise<string> {
-  assertCatalogProductId(productId);
+  store: CatalogImageStore,
+): Promise<{ key: string; url: string }> {
   validateProductImageBytes(input);
+  const key = catalogImageKey(productId, input.filename);
 
-  const storagePath = `catalog/products/${productId}/${input.filename.replaceAll("\\", "/")}`;
-  const token = randomUUID();
-  const bucket = getBucket();
-  const file = bucket.file(storagePath);
-  await file.save(Buffer.from(input.bytes), {
-    metadata: {
-      contentType: input.contentType,
-      metadata: { firebaseStorageDownloadTokens: token },
-    },
+  await store.put({
+    key,
+    bytes: input.bytes,
+    contentType: input.contentType,
   });
 
-  return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket.name)}/o/${encodeURIComponent(storagePath)}?alt=media&token=${encodeURIComponent(token)}`;
+  return { key, url: store.publicUrl(key) };
+}
+
+export async function deleteCatalogImage(
+  key: string,
+  store: CatalogImageStore,
+): Promise<void> {
+  await store.remove(key);
 }

@@ -3,8 +3,6 @@ import "server-only";
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
-import { getStorage } from "firebase-admin/storage";
-import type { Bucket } from "@google-cloud/storage";
 
 import { requireEnv } from "@/lib/server-env";
 import { assertLoopbackEmulatorHosts } from "@/firebase/emulators";
@@ -36,13 +34,11 @@ export function getAdminApp(): App {
   if (useEmulators) {
     adminApp = initializeApp({
       projectId: requireEnv("FIREBASE_PROJECT_ID"),
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
     });
     return adminApp;
   }
 
   adminApp = initializeApp({
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
     credential: cert({
       projectId: requireEnv("FIREBASE_PROJECT_ID"),
       clientEmail: requireEnv("FIREBASE_CLIENT_EMAIL"),
@@ -59,8 +55,4 @@ export function getAdminAuth(): Auth {
 
 export function getAdminDb(): Firestore {
   return getFirestore(getAdminApp());
-}
-
-export function getAdminStorageBucket(): Bucket {
-  return getStorage(getAdminApp()).bucket(requireEnv("FIREBASE_STORAGE_BUCKET"));
 }
