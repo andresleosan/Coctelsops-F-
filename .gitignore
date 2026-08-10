@@ -1,57 +1,22 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Base de 1 Titán — Cronos la completa con lo específico del stack elegido (STACK.md).
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-/test-results
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-.genkit/*
-.env*
+# Secretos y credenciales — nunca deben llegar al repo
+.env
+.env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.cer
+secrets/
+credentials/
 
-# firebase
+# Google Cloud / Firebase / Apps Script
+*-firebase-adminsdk-*.json
+serviceAccountKey.json
+.clasprc.json
+.firebase/
 firebase-debug.log
-firestore-debug.log
-ui-debug.log
-auth-debug.log
-database-debug.log
-pubsub-debug.log
-storage-debug.log
-*-debug.log
-/.firebase/
 
 # estado temporal de pruebas E2E locales
 /.tmp/e2e/
@@ -59,6 +24,39 @@ storage-debug.log
 /qa/test-results/
 /.superpowers/
 
-# entrada local del catálogo, entregada por el operador y nunca versionada
+# Dependencias e instalación
+node_modules/
+vendor/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Builds y artefactos
+dist/
+build/
+out/
+*.log
+coverage/
+
+# Reportes de QA (browser-qa-e2e, v3.3.0) — se regeneran en cada corrida, no se versionan
+qa/reports/
+playwright-report/
+test-results/
+
+# Editor / sistema operativo
+.DS_Store
+.vscode/
+.idea/
+Thumbs.db
+
+# Bases de datos locales
+*.sqlite3
+*.db
+
+# Backups que dejan los scripts de la agencia al actualizar
+*.bak-*
+
+# Entrada local del catálogo, entregada por el operador y nunca versionada
 /scripts/catalog/products.json
 /scripts/catalog/images/
