@@ -1,5 +1,7 @@
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
+import type { Bucket } from "@google-cloud/storage";
 
 let seedApp: App | undefined;
 
@@ -9,7 +11,7 @@ function requireSeedEnv(name: string): string {
   return value;
 }
 
-export function getSeedAdminDb(): Firestore {
+export function getSeedAdminApp(): App {
   if (!seedApp) {
     seedApp = getApps()[0] ?? initializeApp({
       credential: cert({
@@ -20,5 +22,13 @@ export function getSeedAdminDb(): Firestore {
     });
   }
 
-  return getFirestore(seedApp);
+  return seedApp;
+}
+
+export function getSeedAdminDb(): Firestore {
+  return getFirestore(getSeedAdminApp());
+}
+
+export function getSeedAdminStorageBucket(): Bucket {
+  return getStorage(getSeedAdminApp()).bucket(requireSeedEnv("FIREBASE_STORAGE_BUCKET"));
 }
