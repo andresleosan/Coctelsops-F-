@@ -1,4 +1,7 @@
 import { readFile } from "node:fs/promises";
+import { config } from "dotenv";
+
+config({ path: ".env.local" });
 
 import { getCatalogImportPath } from "../src/lib/catalog/import-schema";
 import { runCatalogImportCore, type CatalogImportAdapters, type CatalogImportReport } from "../src/lib/catalog/import-core";
