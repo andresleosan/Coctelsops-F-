@@ -24,23 +24,33 @@ import {
 export async function aiFlavorSuggester(input: AIFlavorSuggesterInput): Promise<AIFlavorSuggesterOutput> {
   const validatedInput = AIFlavorSuggesterInputSchema.parse(input);
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  const deadline = Date.now() + 10_000;
 
   try {
-    const secret = requireEnv('AI_RATE_LIMIT_SECRET');
-    const requestHeaders = await headers();
-    const identity = getRateLimitIdentity(requestHeaders);
-    const digest = hashRateLimitIdentity(identity, secret);
-    const allowed = await reserveAIRateLimit({ db: getAdminDb(), digest });
-
-    if (!allowed) {
-      throw new Error('AI flavor suggester rate limit exceeded');
-    }
-
     const timeout = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error('AI flavor suggester timeout')), 10_000);
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        reject(new Error('AI flavor suggester timeout'));
+      }, 10_000);
     });
 
-    const flowOutput = await Promise.race([aiFlavorSuggesterFlow(validatedInput), timeout]);
+    const flowOutput = await Promise.race([
+      (async () => {
+        const secret = requireEnv('AI_RATE_LIMIT_SECRET');
+        const requestHeaders = await headers();
+        const identity = getRateLimitIdentity(requestHeaders);
+        const digest = hashRateLimitIdentity(identity, secret);
+        const allowed = await reserveAIRateLimit({ db: getAdminDb(), digest });
+
+        if (!allowed || timedOut || Date.now() >= deadline) {
+          throw new Error('AI flavor suggester request unavailable');
+        }
+
+        return aiFlavorSuggesterFlow(validatedInput);
+      })(),
+      timeout,
+    ]);
     return AIFlavorSuggesterOutputSchema.parse(flowOutput);
   } catch {
     throw new AIFlavorSuggesterError();

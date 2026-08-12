@@ -134,6 +134,37 @@ describe("aiFlavorSuggester", () => {
     expect(aiMocks.flow).not.toHaveBeenCalled();
   });
 
+  it("aplica el timeout mientras espera la reserva de cuota", async () => {
+    vi.useFakeTimers();
+    try {
+      const { aiFlavorSuggester } = await import("@/ai/flows/ai-flavor-suggester");
+      let resolveReservation: ((allowed: boolean) => void) | undefined;
+      const reservationStarted = new Promise<void>((resolve) => {
+        rateLimitMocks.reserveAIRateLimit.mockImplementation(
+          () => new Promise<boolean>((reservationResolve) => {
+            resolveReservation = reservationResolve;
+            resolve();
+          }),
+        );
+      });
+
+      const action = aiFlavorSuggester({ preferences: "algo citrico" });
+      await reservationStarted;
+      vi.setSystemTime(Date.now() + 10_001);
+      resolveReservation?.(true);
+
+      await expect(action).rejects.toMatchObject({
+        name: "AIFlavorSuggesterError",
+        message: "No pudimos generar una sugerencia en este momento.",
+      });
+      expect(aiMocks.flow).not.toHaveBeenCalled();
+    } finally {
+      vi.clearAllTimers();
+      vi.clearAllMocks();
+      vi.useRealTimers();
+    }
+  });
+
   it("convierte una salida invalida en un error generico estable", async () => {
     const { aiFlavorSuggester } = await import("@/ai/flows/ai-flavor-suggester");
     aiMocks.prompt.mockResolvedValue({ output: { flavorName: "x" } });

@@ -65,6 +65,30 @@ Las variables privadas son obligatorias para las rutas protegidas y los scripts 
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`, con `\n` escapados si se entrega en una sola línea.
 
+## Sugeridor AI
+
+`/ai-suggest` está disponible sin iniciar sesión. Las preferencias se recortan y se limitan a
+240 caracteres antes de invocar Gemini; la llamada espera como máximo 10 segundos. Si Gemini
+falla, expira o devuelve una respuesta inválida, la interfaz muestra un mensaje genérico y no
+expone detalles técnicos.
+
+El Sugeridor AI permite cinco solicitudes por identidad durante cada ventana de diez minutos.
+La identidad se obtiene de los headers de proxy confiables y, si no hay uno disponible, usa un
+bucket anónimo compartido. `AI_RATE_LIMIT_SECRET` es un secreto privado obligatorio en el
+servidor; configúralo en cada entorno que ejecute la action. Firestore solo guarda un digest
+HMAC de la identidad, nunca la IP cruda, las preferencias ni la respuesta. Los documentos de
+`ai_rate_limits` se reinician lógicamente al vencer la ventana y no tienen limpieza inmediata.
+Si se supera el límite o falta configuración, la interfaz conserva el mensaje genérico
+`No pudimos generar una sugerencia en este momento.`
+
+La sugerencia no crea productos, pedidos ni una compra directa. El botón `Ver menú y pedir`
+navega a `/menu`; el flujo existente continúa solicitando autenticación y verificación de correo
+al llegar al checkout.
+
+Gemini es un servicio con facturación por uso. No hay una cuota mensual defendible documentada
+sin un volumen de solicitudes real; antes de habilitar tráfico significativo o una campaña,
+configura una alerta y un límite de facturación en Google AI/Cloud para el proyecto utilizado.
+
 R2 ya es el backend de imágenes del catálogo. Firebase Admin, Firebase Auth y Firestore siguen siendo necesarios para las rutas protegidas, el login y los datos de productos. Configura estas variables privadas en el entorno del servidor o de los scripts:
 
 - `R2_ACCOUNT_ID`

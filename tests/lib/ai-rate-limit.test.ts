@@ -128,4 +128,22 @@ describe("AI rate limit identity helpers", () => {
       }),
     ).resolves.toBe(true);
   });
+
+  it("considera vencida la ventana exactamente a los diez minutos", async () => {
+    const db = createFakeFirestoreRateLimitDb();
+    const digest = "c".repeat(64);
+    const firstRequest = new Date("2026-08-11T12:00:00.000Z");
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await reserveAIRateLimit({ db, digest, now: firstRequest });
+    }
+
+    await expect(
+      reserveAIRateLimit({
+        db,
+        digest,
+        now: new Date("2026-08-11T12:10:00.000Z"),
+      }),
+    ).resolves.toBe(true);
+  });
 });
