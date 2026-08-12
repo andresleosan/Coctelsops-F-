@@ -6,7 +6,10 @@ import os from "node:os";
 import path from "node:path";
 
 const projectId = "demo-coctels-e2e";
-const testFile = "tests/firestore-rules-emulator.test.ts";
+const testFiles = [
+  "tests/firestore-rules-emulator.test.ts",
+  "tests/integration/ai-rate-limit-emulator.test.ts",
+];
 const runId = process.env.FIRESTORE_RULES_RUN_ID ?? `${process.pid}-${randomUUID()}`;
 const useExistingEmulator = process.argv.includes("--use-existing-emulator")
   || process.env.FIRESTORE_RULES_USE_EXISTING_EMULATOR === "true";
@@ -97,6 +100,9 @@ function createEmulatorConfig(port: number): EmulatorConfig {
 function testEnvironment(host: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
+    FIREBASE_EMULATORS: "true",
+    FIREBASE_PROJECT_ID: projectId,
+    FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
     FIRESTORE_EMULATOR_HOST: host,
     FIRESTORE_RULES_EMULATOR: "true",
     FIRESTORE_RULES_RUN_ID: runId,
@@ -105,7 +111,7 @@ function testEnvironment(host: string): NodeJS.ProcessEnv {
 
 async function runAgainstExistingEmulator(): Promise<number> {
   const host = assertLoopbackHost(process.env.FIRESTORE_EMULATOR_HOST);
-  return run("npx", ["vitest", "run", testFile], testEnvironment(host));
+  return run("npx", ["vitest", "run", ...testFiles], testEnvironment(host));
 }
 
 async function runWithTemporaryEmulator(): Promise<number> {
@@ -118,7 +124,7 @@ async function runWithTemporaryEmulator(): Promise<number> {
     mode: 0o600,
   });
   if (process.platform === "win32") {
-    writeFileSync(scriptPath, "@echo off\r\ncall npx vitest run tests/firestore-rules-emulator.test.ts\r\nexit /b %errorlevel%\r\n", {
+    writeFileSync(scriptPath, `@echo off\r\ncall npx vitest run ${testFiles.join(" ")}\r\nexit /b %errorlevel%\r\n`, {
       encoding: "utf8",
       mode: 0o700,
     });
@@ -135,7 +141,7 @@ async function runWithTemporaryEmulator(): Promise<number> {
         "emulators:exec",
         "--only",
         "firestore",
-        process.platform === "win32" ? scriptPath : `npx vitest run ${testFile}`,
+        process.platform === "win32" ? scriptPath : `npx vitest run ${testFiles.join(" ")}`,
       ],
       testEnvironment(`127.0.0.1:${port}`),
     );
