@@ -8,11 +8,33 @@ const aiMocks = vi.hoisted(() => ({
   prompt: vi.fn(),
 }));
 
+const rateLimitMocks = vi.hoisted(() => ({
+  getAdminDb: vi.fn(),
+  getRateLimitIdentity: vi.fn(),
+  hashRateLimitIdentity: vi.fn(),
+  headers: vi.fn(),
+  reserveAIRateLimit: vi.fn(),
+}));
+
 vi.mock("@/ai/genkit", () => ({
   ai: {
     defineFlow: aiMocks.defineFlow,
     definePrompt: aiMocks.definePrompt,
   },
+}));
+
+vi.mock("next/headers", () => ({
+  headers: rateLimitMocks.headers,
+}));
+
+vi.mock("@/lib/firebase-admin", () => ({
+  getAdminDb: rateLimitMocks.getAdminDb,
+}));
+
+vi.mock("@/lib/ai/ai-rate-limit", () => ({
+  getRateLimitIdentity: rateLimitMocks.getRateLimitIdentity,
+  hashRateLimitIdentity: rateLimitMocks.hashRateLimitIdentity,
+  reserveAIRateLimit: rateLimitMocks.reserveAIRateLimit,
 }));
 
 aiMocks.defineFlow.mockImplementation((_config, handler) => {
@@ -27,11 +49,22 @@ const validOutput = {
 };
 
 beforeEach(() => {
+  process.env.AI_RATE_LIMIT_SECRET = "test-rate-limit-secret";
   aiMocks.definePrompt.mockReturnValue(aiMocks.prompt);
   aiMocks.flow.mockReset();
   aiMocks.prompt.mockReset();
   aiMocks.prompt.mockResolvedValue({ output: validOutput });
   aiMocks.flow.mockImplementation((input) => aiMocks.flowHandler?.(input));
+  rateLimitMocks.getAdminDb.mockReset();
+  rateLimitMocks.getRateLimitIdentity.mockReset();
+  rateLimitMocks.hashRateLimitIdentity.mockReset();
+  rateLimitMocks.headers.mockReset();
+  rateLimitMocks.reserveAIRateLimit.mockReset();
+  rateLimitMocks.getAdminDb.mockReturnValue({});
+  rateLimitMocks.getRateLimitIdentity.mockReturnValue("203.0.113.8");
+  rateLimitMocks.hashRateLimitIdentity.mockReturnValue("digest");
+  rateLimitMocks.headers.mockResolvedValue(new Headers());
+  rateLimitMocks.reserveAIRateLimit.mockResolvedValue(true);
 });
 
 describe("aiFlavorSuggester", () => {
@@ -41,6 +74,7 @@ describe("aiFlavorSuggester", () => {
     await expect(aiFlavorSuggester({ preferences: "  " })).rejects.toThrow();
     await expect(aiFlavorSuggester({ preferences: "a".repeat(241) })).rejects.toThrow();
     expect(aiMocks.flow).not.toHaveBeenCalled();
+    expect(rateLimitMocks.reserveAIRateLimit).not.toHaveBeenCalled();
   });
 
   it.each(["a", "ab"])("rechaza una preferencia no vacia de %s caracteres sin invocar el flow", async (preferences) => {
@@ -56,6 +90,48 @@ describe("aiFlavorSuggester", () => {
     await aiFlavorSuggester({ preferences: "  frutas citricas  " });
 
     expect(aiMocks.flow).toHaveBeenCalledWith({ preferences: "frutas citricas" });
+    expect(rateLimitMocks.getRateLimitIdentity).toHaveBeenCalledWith(expect.any(Headers));
+    expect(rateLimitMocks.hashRateLimitIdentity).toHaveBeenCalledWith("203.0.113.8", "test-rate-limit-secret");
+    expect(rateLimitMocks.reserveAIRateLimit).toHaveBeenCalledWith({ db: {}, digest: "digest" });
+  });
+
+  it("no invoca el prompt cuando la reserva de cuota es rechazada", async () => {
+    const { aiFlavorSuggester } = await import("@/ai/flows/ai-flavor-suggester");
+    rateLimitMocks.reserveAIRateLimit.mockResolvedValue(false);
+
+    await expect(aiFlavorSuggester({ preferences: "algo citrico" })).rejects.toMatchObject({
+      name: "AIFlavorSuggesterError",
+      message: "No pudimos generar una sugerencia en este momento.",
+    });
+    expect(aiMocks.prompt).not.toHaveBeenCalled();
+    expect(aiMocks.flow).not.toHaveBeenCalled();
+  });
+
+  it("convierte la falta del secreto en un error generico sin invocar Gemini", async () => {
+    const { aiFlavorSuggester } = await import("@/ai/flows/ai-flavor-suggester");
+    const configuredSecret = process.env.AI_RATE_LIMIT_SECRET;
+    delete process.env.AI_RATE_LIMIT_SECRET;
+
+    try {
+      await expect(aiFlavorSuggester({ preferences: "algo citrico" })).rejects.toMatchObject({
+        name: "AIFlavorSuggesterError",
+        message: "No pudimos generar una sugerencia en este momento.",
+      });
+      expect(aiMocks.flow).not.toHaveBeenCalled();
+    } finally {
+      process.env.AI_RATE_LIMIT_SECRET = configuredSecret;
+    }
+  });
+
+  it("convierte un fallo del limitador en un error generico sin invocar Gemini", async () => {
+    const { aiFlavorSuggester } = await import("@/ai/flows/ai-flavor-suggester");
+    rateLimitMocks.reserveAIRateLimit.mockRejectedValue(new Error("rate limiter failure"));
+
+    await expect(aiFlavorSuggester({ preferences: "algo citrico" })).rejects.toMatchObject({
+      name: "AIFlavorSuggesterError",
+      message: "No pudimos generar una sugerencia en este momento.",
+    });
+    expect(aiMocks.flow).not.toHaveBeenCalled();
   });
 
   it("convierte una salida invalida en un error generico estable", async () => {

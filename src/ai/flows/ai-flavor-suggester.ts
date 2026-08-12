@@ -8,6 +8,11 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { headers } from 'next/headers';
+
+import { getAdminDb } from '@/lib/firebase-admin';
+import { getRateLimitIdentity, hashRateLimitIdentity, reserveAIRateLimit } from '@/lib/ai/ai-rate-limit';
+import { requireEnv } from '@/lib/server-env';
 import {
   AIFlavorSuggesterError,
   AIFlavorSuggesterInputSchema,
@@ -21,6 +26,16 @@ export async function aiFlavorSuggester(input: AIFlavorSuggesterInput): Promise<
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
   try {
+    const secret = requireEnv('AI_RATE_LIMIT_SECRET');
+    const requestHeaders = await headers();
+    const identity = getRateLimitIdentity(requestHeaders);
+    const digest = hashRateLimitIdentity(identity, secret);
+    const allowed = await reserveAIRateLimit({ db: getAdminDb(), digest });
+
+    if (!allowed) {
+      throw new Error('AI flavor suggester rate limit exceeded');
+    }
+
     const timeout = new Promise<never>((_, reject) => {
       timeoutId = setTimeout(() => reject(new Error('AI flavor suggester timeout')), 10_000);
     });
