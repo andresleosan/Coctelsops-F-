@@ -1,11 +1,50 @@
 import { describe, expect, it } from "vitest";
+import type { Firestore } from "firebase-admin/firestore";
 
 import {
   getRateLimitIdentity,
   hashRateLimitIdentity,
   RATE_LIMIT_MAX_REQUESTS,
   RATE_LIMIT_WINDOW_MS,
+  reserveAIRateLimit,
 } from "@/lib/ai/ai-rate-limit";
+
+function createFakeFirestoreRateLimitDb(): Firestore {
+  const documents = new Map<string, Record<string, unknown>>();
+
+  const db = {
+    collection(collectionName: string) {
+      return {
+        doc(documentId: string) {
+          const path = `${collectionName}/${documentId}`;
+          return { path };
+        },
+      };
+    },
+    async runTransaction<T>(callback: (transaction: unknown) => Promise<T>): Promise<T> {
+      return callback({
+        async get(reference: { path: string }) {
+          const data = documents.get(reference.path);
+          return {
+            exists: data !== undefined,
+            data: () => data,
+          };
+        },
+        create(reference: { path: string }, data: Record<string, unknown>) {
+          documents.set(reference.path, data);
+        },
+        update(reference: { path: string }, data: Record<string, unknown>) {
+          documents.set(reference.path, {
+            ...documents.get(reference.path),
+            ...data,
+          });
+        },
+      });
+    },
+  } as unknown as Firestore;
+
+  return db;
+}
 
 describe("AI rate limit identity helpers", () => {
   it("prioriza la identidad de Cloudflare y usa solo su primera entrada", () => {
@@ -50,5 +89,43 @@ describe("AI rate limit identity helpers", () => {
   it("expone el limite y la ventana exactos", () => {
     expect(RATE_LIMIT_MAX_REQUESTS).toBe(5);
     expect(RATE_LIMIT_WINDOW_MS).toBe(10 * 60 * 1000);
+  });
+
+  it("permite las primeras cinco reservas y rechaza la sexta", async () => {
+    const db = createFakeFirestoreRateLimitDb();
+    const digest = "a".repeat(64);
+    const firstRequest = new Date("2026-08-11T12:00:00.000Z");
+
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      await expect(
+        reserveAIRateLimit({ db, digest, now: firstRequest }),
+      ).resolves.toBe(true);
+    }
+
+    await expect(
+      reserveAIRateLimit({
+        db,
+        digest,
+        now: new Date("2026-08-11T12:01:00.000Z"),
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it("reinicia la ventana vencida", async () => {
+    const db = createFakeFirestoreRateLimitDb();
+    const digest = "b".repeat(64);
+    const firstRequest = new Date("2026-08-11T12:00:00.000Z");
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await reserveAIRateLimit({ db, digest, now: firstRequest });
+    }
+
+    await expect(
+      reserveAIRateLimit({
+        db,
+        digest,
+        now: new Date("2026-08-11T12:10:00.001Z"),
+      }),
+    ).resolves.toBe(true);
   });
 });
