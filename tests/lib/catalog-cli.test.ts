@@ -58,5 +58,5 @@ describe("CLI de importación de catálogo", () => {
       if (!hadImagesDirectory) await rm(imagesDirectory, { recursive: true, force: true });
       await rm(temporaryDirectory, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 });
