@@ -63,3 +63,5 @@ Thumbs.db
 # Entrada local del catálogo, entregada por el operador y nunca versionada
 /scripts/catalog/products.json
 /scripts/catalog/images/
+
+/.worktrees/
