@@ -1,6 +1,6 @@
 # Stack propuesto para Coctels OPS
 
-Fecha: 2026-10-18. Estado: propuesta; requiere revisión del diseño antes de implementar.
+Fecha: 2026-10-18. Estado: diseño aprobado por el operador; plan de implementación preparado para revisión. Infraestructura y código de producto pendientes de ejecución.
 
 El estado ejecutable actual continúa siendo Next.js con Firestore y hosting Vercel. Este documento describe el destino solicitado; no certifica una migración realizada.
 

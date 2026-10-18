@@ -1,6 +1,6 @@
 # Coctels OPS: Cloudflare, catálogo y Opsy Bot
 
-Fecha: 2026-10-18. Estado: propuesta concreta para revisión del operador; implementación pendiente.
+Fecha: 2026-10-18. Estado: diseño aprobado por el operador en la conversación el 2026-10-18; implementación pendiente. Plan preparado en [documento coordinador](../plans/2026-10-18-cloudflare-catalogo-opsy-plan.md).
 
 ## Resultado solicitado
 

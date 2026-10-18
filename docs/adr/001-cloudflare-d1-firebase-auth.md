@@ -1,7 +1,7 @@
 # ADR-001: Workers y D1 con Firebase Auth
 
 Fecha: 2026-10-18.
-Estado: propuesta para revisión.
+Estado: aceptada por aprobación del diseño del operador el 2026-10-18; implementación pendiente.
 
 ## Contexto
 
