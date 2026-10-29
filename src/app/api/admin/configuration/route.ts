@@ -10,7 +10,7 @@ function errorResponse(error: unknown): Response {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  try { await requirePermission(request as never, "configuracion.read"); return Response.json({ configuration: await getStoreConfiguration() }); } catch (error) { return errorResponse(error); }
+  try { await requirePermission(request as never, "configuracion.read"); return Response.json({ configuration: await getStoreConfiguration({ allowDefaults: true }) }); } catch (error) { return errorResponse(error); }
 }
 
 export async function PUT(request: Request): Promise<Response> {

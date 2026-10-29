@@ -33,15 +33,26 @@ export const storeConfigurationSchema = z.object({
   messages: z.object({ orderReceived: z.string().trim().min(1).max(300), orderStatus: z.string().trim().min(1).max(300), unavailable: z.string().trim().min(1).max(300) }),
 });
 
-function parseConfiguration(data: Record<string, unknown> | undefined): StoreConfiguration {
-  const candidate = { ...DEFAULT_STORE_CONFIGURATION, ...(data ?? {}), messages: { ...DEFAULT_STORE_CONFIGURATION.messages, ...((data?.messages as Record<string, unknown> | undefined) ?? {}) } };
-  const parsed = storeConfigurationSchema.safeParse(candidate);
-  return parsed.success ? parsed.data : DEFAULT_STORE_CONFIGURATION;
+export class StoreConfigurationUnavailableError extends Error {
+  constructor() {
+    super("La configuración de la tienda no está disponible");
+    this.name = "StoreConfigurationUnavailableError";
+  }
 }
 
-export async function getStoreConfiguration(): Promise<StoreConfiguration> {
+export async function getStoreConfiguration(
+  options: { allowDefaults?: boolean } = {},
+): Promise<StoreConfiguration> {
   const snapshot = await getAdminDb().collection("configuracion").doc("principal").get();
-  return parseConfiguration(snapshot.exists ? snapshot.data() as Record<string, unknown> : undefined);
+  if (!snapshot.exists) {
+    if (options.allowDefaults) return DEFAULT_STORE_CONFIGURATION;
+    throw new StoreConfigurationUnavailableError();
+  }
+
+  const parsed = storeConfigurationSchema.safeParse(snapshot.data());
+  if (parsed.success) return parsed.data;
+  if (options.allowDefaults) return DEFAULT_STORE_CONFIGURATION;
+  throw new StoreConfigurationUnavailableError();
 }
 
 export async function updateStoreConfiguration(input: StoreConfiguration, actorUid: string): Promise<StoreConfiguration> {

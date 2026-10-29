@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildWhatsAppMessage } from "@/lib/orders/whatsapp-message";
+import { buildWhatsAppLink, buildWhatsAppMessage } from "@/lib/orders/whatsapp-message";
 import type { Order } from "@/types/orders";
 
 const order: Order = {
@@ -27,6 +27,10 @@ const order: Order = {
 };
 
 describe("WhatsApp order link", () => {
+  it("construye un enlace WhatsApp desde el número configurado", () => {
+    expect(buildWhatsAppLink("+57 324 555 0000")).toBe("https://wa.me/573245550000");
+  });
+
   it("returns an encoded prepared link without sending anything", () => {
     const url = buildWhatsAppMessage(order, "+57 324 554 5530");
 

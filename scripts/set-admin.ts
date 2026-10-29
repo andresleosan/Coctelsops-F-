@@ -3,7 +3,7 @@ import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 async function main(): Promise<void> {
   const uid = process.argv[2]?.trim();
   if (!uid) {
-    throw new Error("Uso: npx tsx scripts/set-admin.ts <UID>");
+    throw new Error("Uso: pnpm exec tsx scripts/set-admin.ts <UID>");
   }
 
   const auth = getAdminAuth();

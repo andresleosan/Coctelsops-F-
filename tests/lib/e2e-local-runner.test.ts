@@ -43,6 +43,28 @@ describe("runner E2E local", () => {
     expect(environment.E2E_BASE_URL).toBeUndefined();
   });
 
+  it("no transmite secretos heredados ni credenciales E2E externas", () => {
+    const environment = createLocalE2EEnvironment({
+      Path: "C:\\bin",
+      FIREBASE_PRIVATE_KEY: "secret",
+      E2E_ADMIN_PASSWORD: "secret",
+      E2E_BASE_URL: "https://remote.example.test",
+    }, { firestore: 18_080, auth: 19_099 });
+
+    expect(environment.Path).toBe("C:\\bin");
+    expect(environment.FIREBASE_PRIVATE_KEY).toBeUndefined();
+    expect(environment.E2E_ADMIN_PASSWORD).toBeUndefined();
+    expect(environment.E2E_BASE_URL).toBeUndefined();
+    expect(environment.FIRESTORE_EMULATOR_HOST).toBe("127.0.0.1:18080");
+  });
+
+  it("rechaza hosts de emulador externos al reingresar al runner", () => {
+    expect(() => createLocalE2EEnvironment({
+      FIRESTORE_EMULATOR_HOST: "firestore.example.test:8080",
+      FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
+    })).toThrow("loopback");
+  });
+
   it("genera configuración temporal con reglas e índices del repositorio", () => {
     const config = createFirebaseEmulatorConfig({
       firestore: 18_080,

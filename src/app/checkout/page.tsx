@@ -14,7 +14,7 @@ import { CheckCircle2, CreditCard, Wallet, Truck, ArrowLeft } from 'lucide-react
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { getCheckoutErrorMessage } from '@/lib/checkout/messages';
-import { DEFAULT_STORE_CONFIGURATION, type StoreConfiguration } from '@/types/operations';
+import type { StoreConfiguration } from '@/types/operations';
 
 export default function CheckoutPage() {
   const { totalPrice, items, clearCart, getCheckoutItems } = useCart();
@@ -23,7 +23,7 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const idempotencyKey = useRef<string | null>(null);
-  const [configuration, setConfiguration] = useState<StoreConfiguration>(DEFAULT_STORE_CONFIGURATION);
+  const [configuration, setConfiguration] = useState<StoreConfiguration | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -85,9 +85,9 @@ export default function CheckoutPage() {
 
       const body = await response.json().catch(() => ({})) as { error?: string };
       idempotencyKey.current = null;
-      setSubmitError(getCheckoutErrorMessage(response.status, body.error, configuration.messages.unavailable));
+      setSubmitError(getCheckoutErrorMessage(response.status, body.error, configuration?.messages.unavailable ?? 'No pudimos procesar el pedido.'));
     } catch {
-      setSubmitError(getCheckoutErrorMessage(undefined, undefined, configuration.messages.unavailable));
+      setSubmitError(getCheckoutErrorMessage(undefined, undefined, configuration?.messages.unavailable ?? 'No pudimos procesar el pedido.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -198,12 +198,12 @@ export default function CheckoutPage() {
                   <span className="font-black text-3xl md:text-5xl">${totalPrice.toLocaleString()}</span>
                 </div>
                 
-                <div className="space-y-4 py-2">
+                {configuration && <div className="space-y-4 py-2">
                   <div className="flex items-center gap-3 text-sm font-bold">
                     <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                    <p>Entrega estimada: 30-45 min</p>
+                    <p>Entrega estimada: {configuration.estimatedDeliveryMinutes} min</p>
                   </div>
-                </div>
+                </div>}
 
                 <Button 
                   type="submit" 

@@ -6,6 +6,7 @@ import path from "node:path";
 
 import { LOCAL_FIREBASE_CONFIG } from "../src/firebase/config";
 import { getLocalE2EStatePath } from "./e2e-local-state";
+import { selectLocalEmulatorProcessEnvironment } from "./local-emulator-env";
 
 const emulatorProject = "demo-coctels-e2e";
 const insideEmulators = process.argv.includes("--inside-emulators");
@@ -108,8 +109,7 @@ export function createLocalE2EEnvironment(
   baseEnvironment: Environment,
   ports?: LocalEmulatorPorts,
 ): Environment {
-  const environment = { ...baseEnvironment };
-  delete environment.E2E_BASE_URL;
+  const environment = selectLocalEmulatorProcessEnvironment(baseEnvironment);
   environment.FIREBASE_EMULATORS = "true";
   environment.NEXT_PUBLIC_FIREBASE_EMULATORS = "true";
   environment.FIREBASE_PROJECT_ID = emulatorProject;
@@ -122,8 +122,15 @@ export function createLocalE2EEnvironment(
   environment.E2E_CLEANUP = "true";
   environment.E2E_CLEANUP_CONFIRM = "DELETE_E2E_DATA";
 
-  const firestoreHost = ports ? `127.0.0.1:${ports.firestore}` : environment.FIRESTORE_EMULATOR_HOST ?? defaultFirestoreHost;
-  const authHost = ports ? `127.0.0.1:${ports.auth}` : environment.FIREBASE_AUTH_EMULATOR_HOST ?? defaultAuthHost;
+  const firestoreHost = ports ? `127.0.0.1:${ports.firestore}` : baseEnvironment.FIRESTORE_EMULATOR_HOST ?? defaultFirestoreHost;
+  const authHost = ports ? `127.0.0.1:${ports.auth}` : baseEnvironment.FIREBASE_AUTH_EMULATOR_HOST ?? defaultAuthHost;
+  if (![firestoreHost, authHost].every((host) => {
+    const match = /^(localhost|127\.0\.0\.1):(\d+)$/.exec(host);
+    const port = Number(match?.[2]);
+    return match && port >= 1 && port <= 65_535;
+  })) {
+    throw new Error("Los emuladores locales requieren hosts loopback con puertos válidos.");
+  }
   environment.FIRESTORE_EMULATOR_HOST = firestoreHost;
   environment.FIREBASE_AUTH_EMULATOR_HOST = authHost;
   environment.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST = firestoreHost;
@@ -155,7 +162,7 @@ function createTemporaryFirebaseConfig(ports: LocalEmulatorPorts): { filePath: s
     encoding: "utf8",
     mode: 0o600,
   });
-  writeFileSync(absoluteScriptPath, "@echo off\r\ncall npx tsx scripts/e2e-local-runner.ts --inside-emulators\r\nexit /b %errorlevel%\r\n", {
+  writeFileSync(absoluteScriptPath, "@echo off\r\ncall pnpm exec tsx scripts/e2e-local-runner.ts --inside-emulators\r\nexit /b %errorlevel%\r\n", {
     encoding: "utf8",
     mode: 0o700,
   });
@@ -224,7 +231,7 @@ async function runInsideEmulators(): Promise<number> {
 
   try {
     await runServerOnlySafe(() => prepareLocalE2EState());
-    exitCode = await run("npx", ["playwright", "test"], environment);
+    exitCode = await run("pnpm", ["exec", "playwright", "test"], environment);
   } finally {
     if (existsSync(getLocalE2EStatePath(environment))) {
       try {
@@ -271,7 +278,7 @@ async function runWithEmulators(): Promise<number> {
       "auth,firestore",
       "--project",
       emulatorProject,
-      process.platform === "win32" ? temporaryConfig.scriptPath : "npx tsx scripts/e2e-local-runner.ts --inside-emulators",
+      process.platform === "win32" ? temporaryConfig.scriptPath : "pnpm exec tsx scripts/e2e-local-runner.ts --inside-emulators",
     ], environment);
   } finally {
     temporaryConfig?.dispose();

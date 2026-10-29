@@ -4,10 +4,29 @@
 import { Instagram, Facebook, MapPin, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import type { StoreConfiguration } from '@/types/operations';
+import { buildWhatsAppLink } from '@/lib/orders/whatsapp-message';
 
 export default function Footer() {
   const pathname = usePathname();
+  const [configuration, setConfiguration] = useState<StoreConfiguration | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    void fetch('/api/configuration').then(async (response) => {
+      if (response.status !== 200 || !active) return;
+      const data = await response.json() as { configuration?: StoreConfiguration };
+      if (active && data.configuration) setConfiguration(data.configuration);
+    }).catch(() => undefined);
+
+    return () => { active = false; };
+  }, []);
+
   if (pathname.startsWith('/admin')) return null;
+
+  const whatsappHref = configuration ? buildWhatsAppLink(configuration.whatsappNumber) : null;
 
   return (
     <footer className="bg-secondary/30 border-t border-primary/20 py-12 mt-12">
@@ -32,10 +51,10 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold mb-4 text-foreground uppercase tracking-widest text-xs">Domicilios</h4>
             <ul className="space-y-3 text-sm">
-              <li className="flex items-center justify-center md:justify-start gap-2">
+              {whatsappHref && configuration && <li className="flex items-center justify-center md:justify-start gap-2">
                 <MessageSquare className="w-4 h-4 text-primary" />
-                <span className="font-bold text-primary">WhatsApp: 324 554 5530</span>
-              </li>
+                <Link href={whatsappHref} target="_blank" rel="noreferrer" className="font-bold text-primary">WhatsApp: {configuration.whatsappNumber}</Link>
+              </li>}
               <li className="flex items-center justify-center md:justify-start gap-2">
                 <MapPin className="w-4 h-4 text-primary" />
                 <span>Carrera 37 # 66 D 36, Villa Hermosa</span>

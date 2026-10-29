@@ -8,6 +8,10 @@ function normalizePhone(phone: string): string {
   return normalized;
 }
 
+export function buildWhatsAppLink(phone: string): string {
+  return `https://wa.me/${normalizePhone(phone)}`;
+}
+
 export function buildWhatsAppMessage(order: Pick<Order, "id" | "customerName" | "items" | "total" | "address">, phone: string): string {
   const message = [
     `Pedido #${order.id}`,
@@ -17,5 +21,5 @@ export function buildWhatsAppMessage(order: Pick<Order, "id" | "customerName" | 
     `Entrega: ${order.address}`,
   ].join("\n");
 
-  return `https://wa.me/${normalizePhone(phone)}?text=${encodeURIComponent(message)}`;
+  return `${buildWhatsAppLink(phone)}?text=${encodeURIComponent(message)}`;
 }

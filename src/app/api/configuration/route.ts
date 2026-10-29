@@ -1,5 +1,16 @@
-import { getStoreConfiguration } from "@/lib/firestore/configuration";
+import {
+  getStoreConfiguration,
+  StoreConfigurationUnavailableError,
+} from "@/lib/firestore/configuration";
 
 export async function GET(): Promise<Response> {
-  return Response.json({ configuration: await getStoreConfiguration() });
+  try {
+    return Response.json({ configuration: await getStoreConfiguration() });
+  } catch (error) {
+    if (error instanceof StoreConfigurationUnavailableError) {
+      return Response.json({ error: error.message }, { status: 503 });
+    }
+
+    return Response.json({ error: "No fue posible completar la solicitud" }, { status: 500 });
+  }
 }

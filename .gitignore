@@ -1,4 +1,4 @@
-# Base de 1 Titán — Cronos la completa con lo específico del stack elegido (STACK.md).
+# Archivos locales y generados
 
 # Secretos y credenciales — nunca deben llegar al repo
 .env
@@ -29,6 +29,9 @@ firebase-debug.log
 
 # Dependencias e instalación
 node_modules/
+/.next/
+/*.tsbuildinfo
+/graphify-out/
 vendor/
 .venv/
 venv/
@@ -57,11 +60,12 @@ Thumbs.db
 *.sqlite3
 *.db
 
-# Backups que dejan los scripts de la agencia al actualizar
+# Backups locales
 *.bak-*
 
 # Entrada local del catálogo, entregada por el operador y nunca versionada
 /scripts/catalog/products.json
 /scripts/catalog/images/
+.vercel
 
 /.worktrees/

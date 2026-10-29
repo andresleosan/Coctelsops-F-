@@ -4,6 +4,7 @@ import { createServer } from "node:net";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { selectLocalEmulatorProcessEnvironment } from "./local-emulator-env";
 
 const projectId = "demo-coctels-e2e";
 const testFiles = [
@@ -99,7 +100,7 @@ function createEmulatorConfig(port: number): EmulatorConfig {
 
 function testEnvironment(host: string): NodeJS.ProcessEnv {
   return {
-    ...process.env,
+    ...selectLocalEmulatorProcessEnvironment(process.env),
     FIREBASE_EMULATORS: "true",
     FIREBASE_PROJECT_ID: projectId,
     FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
@@ -111,7 +112,7 @@ function testEnvironment(host: string): NodeJS.ProcessEnv {
 
 async function runAgainstExistingEmulator(): Promise<number> {
   const host = assertLoopbackHost(process.env.FIRESTORE_EMULATOR_HOST);
-  return run("npx", ["vitest", "run", ...testFiles], testEnvironment(host));
+  return run("pnpm", ["exec", "vitest", "run", ...testFiles], testEnvironment(host));
 }
 
 async function runWithTemporaryEmulator(): Promise<number> {
@@ -124,7 +125,7 @@ async function runWithTemporaryEmulator(): Promise<number> {
     mode: 0o600,
   });
   if (process.platform === "win32") {
-    writeFileSync(scriptPath, `@echo off\r\ncall npx vitest run ${testFiles.join(" ")}\r\nexit /b %errorlevel%\r\n`, {
+    writeFileSync(scriptPath, `@echo off\r\ncall pnpm exec vitest run ${testFiles.join(" ")}\r\nexit /b %errorlevel%\r\n`, {
       encoding: "utf8",
       mode: 0o700,
     });
@@ -134,14 +135,16 @@ async function runWithTemporaryEmulator(): Promise<number> {
     return await run(
       "firebase",
       [
+        "emulators:exec",
         "--config",
         configPath,
         "--project",
         projectId,
-        "emulators:exec",
+        "--log-verbosity",
+        "QUIET",
         "--only",
         "firestore",
-        process.platform === "win32" ? scriptPath : `npx vitest run ${testFiles.join(" ")}`,
+        process.platform === "win32" ? scriptPath : `pnpm exec vitest run ${testFiles.join(" ")}`,
       ],
       testEnvironment(`127.0.0.1:${port}`),
     );

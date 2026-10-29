@@ -40,7 +40,7 @@ describe("configuracion local de Playwright", () => {
     expect(config.reporter).toEqual([["html", { outputFolder: "qa/reports", open: "never" }]]);
     expect(config.outputDir).toBe("qa/test-results");
     expect(webServer).toMatchObject({
-      command: "npm run dev",
+      command: "pnpm dev",
       url: "http://127.0.0.1:9002",
       reuseExistingServer: false,
     });

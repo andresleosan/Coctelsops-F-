@@ -20,7 +20,7 @@ const config = [
     },
   },
   {
-    ignores: ["qa/**", ".tmp/**", ".superpowers/**"],
+    ignores: ["qa/**", ".tmp/**", ".superpowers/**", ".worktrees/**"],
   },
 ];
 

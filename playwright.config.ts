@@ -33,7 +33,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: process.env.E2E_BASE_URL ? undefined : {
-    command: "npm run dev",
+    command: "pnpm dev",
     url: localBaseURL,
     reuseExistingServer: false,
     env: localEmulatorEnvironment,

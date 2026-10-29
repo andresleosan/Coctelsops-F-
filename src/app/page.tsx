@@ -6,10 +6,16 @@ import { ArrowRight, Truck, MessageSquare, MapPin } from 'lucide-react';
 import ProductCard from '@/components/products/ProductCard';
 import CocktailCarousel from '@/components/products/CocktailCarousel';
 import { getFeaturedProducts } from '@/lib/catalog/home';
+import { getStoreConfiguration } from '@/lib/firestore/configuration';
+import { buildWhatsAppLink } from '@/lib/orders/whatsapp-message';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default async function Home() {
-  const featuredProducts = await getFeaturedProducts();
+  const [featuredProducts, configuration] = await Promise.all([
+    getFeaturedProducts(),
+    getStoreConfiguration().catch(() => null),
+  ]);
+  const whatsappHref = configuration ? buildWhatsAppLink(configuration.whatsappNumber) : null;
   
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-granizado')?.imageUrl || '/catalog-placeholder.svg';
   const logoImage = PlaceHolderImages.find(img => img.id === 'logo-ops')?.imageUrl || '/catalog-placeholder.svg';
@@ -62,11 +68,13 @@ export default async function Home() {
                 VER EL MENÚ <ArrowRight className="ml-1 w-4 h-4" />
               </Link>
             </Button>
-            <Button size="lg" variant="outline" className="rounded-full h-14 md:h-16 px-8 border-accent text-accent hover:bg-accent/10 font-bold uppercase tracking-widest text-sm" asChild>
-              <Link href="https://wa.me/573245545530" target="_blank">
-                <MessageSquare className="mr-2 w-4 h-4" /> WHATSAPP
-              </Link>
-            </Button>
+            {whatsappHref && (
+              <Button size="lg" variant="outline" className="rounded-full h-14 md:h-16 px-8 border-accent text-accent hover:bg-accent/10 font-bold uppercase tracking-widest text-sm" asChild>
+                <Link href={whatsappHref} target="_blank">
+                  <MessageSquare className="mr-2 w-4 h-4" /> WHATSAPP
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </section>
@@ -82,19 +90,21 @@ export default async function Home() {
               </div>
               
               <div className="grid gap-3">
-                <Link 
-                  href="https://wa.me/573245545530" 
-                  target="_blank"
-                  className="flex items-center gap-4 p-5 rounded-2xl bg-black/60 border border-primary/20 group hover:border-primary/60 transition-all active:scale-95"
-                >
-                  <div className="bg-primary/20 p-3 rounded-xl text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-[0_0_15px_rgba(233,30,99,0.3)]">
-                    <MessageSquare className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[9px] uppercase tracking-[0.2em] text-accent mb-0.5 font-bold">Pide por WhatsApp</p>
-                    <p className="text-xl font-bold text-white tracking-tight">324 554 5530</p>
-                  </div>
-                </Link>
+                {whatsappHref && (
+                  <Link
+                    href={whatsappHref}
+                    target="_blank"
+                    className="flex items-center gap-4 p-5 rounded-2xl bg-black/60 border border-primary/20 group hover:border-primary/60 transition-all active:scale-95"
+                  >
+                    <div className="bg-primary/20 p-3 rounded-xl text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-[0_0_15px_rgba(233,30,99,0.3)]">
+                      <MessageSquare className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.2em] text-accent mb-0.5 font-bold">Pide por WhatsApp</p>
+                      <p className="text-xl font-bold text-white tracking-tight">{configuration?.whatsappNumber}</p>
+                    </div>
+                  </Link>
+                )}
 
                 <div className="flex items-center gap-4 p-5 rounded-2xl bg-black/60 border border-accent/20">
                   <div className="bg-accent/20 p-3 rounded-xl text-accent shadow-[0_0_15px_rgba(0,188,212,0.3)]">
